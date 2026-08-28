@@ -1,0 +1,13 @@
+:root {
+    --ke-brand-primary: #0a7d3c;
+    --ke-brand-accent: #f2b705;
+}
+
+.pos .pos-topheader {
+    background-color: var(--ke-brand-primary) !important;
+}
+
+.ke-etims-block {
+    font-size: 12px;
+    font-family: monospace;
+}

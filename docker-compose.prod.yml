@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:16
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${ODOO_DB_USER}
+      POSTGRES_PASSWORD: ${ODOO_DB_PASSWORD}
+      POSTGRES_DB: postgres
+    volumes:
+      - odoo-db-data:/var/lib/postgresql/data
+    restart: always
+
+  odoo:
+    image: odoo:19.0
+    depends_on:
+      - db
+    env_file: .env
+    environment:
+      HOST: db
+      USER: ${ODOO_DB_USER}
+      PASSWORD: ${ODOO_DB_PASSWORD}
+    ports:
+      - "127.0.0.1:8069:8069"
+      - "127.0.0.1:8072:8072"
+    volumes:
+      - ./config/odoo.conf:/etc/odoo/odoo.conf
+      - ./addons-custom:/mnt/extra-addons/custom
+      - ./addons-oca:/mnt/extra-addons/oca
+      - odoo-web-data:/var/lib/odoo
+      - odoo-filestore:/var/lib/odoo/filestore
+      - /var/log/odoo:/var/log/odoo
+    restart: always
+
+volumes:
+  odoo-db-data:
+  odoo-web-data:
+  odoo-filestore:

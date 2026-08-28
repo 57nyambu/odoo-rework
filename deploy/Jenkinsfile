@@ -1,0 +1,61 @@
+// Adapted to match the existing pipeline conventions used for
+// motorgarage/samta/agriconnect/etc: motorgarage-ssh credential
+// authenticating as `tom`, an sv2-host-style deploy host binding,
+// -i "$SSH_KEY" $SSH_OPTS to avoid word-splitting, and a route-agnostic
+// curl -s health check with no -f.
+//
+// Verify the exact credential/variable binding syntax against one of your
+// existing Jenkinsfiles — this mirrors the pattern described, not a copy
+// of a specific working file.
+
+pipeline {
+    agent any
+
+    environment {
+        APP_DIR = '/home/tom/apps/odoo-kenya'
+        DB_NAME = 'odoo_kenya_prod'
+        CUSTOM_MODULES = 'ke_base,ke_etims,ke_mpesa,ke_pos_ui,ke_cash_purchase,ke_uac,ke_reporting'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Deploy + upgrade + health check') {
+            steps {
+                withCredentials([
+                    sshUserPrivateKey(credentialsId: 'motorgarage-ssh', keyFileVariable: 'SSH_KEY'),
+                    string(credentialsId: 'sv2-host', variable: 'DEPLOY_HOST')
+                ]) {
+                    sh '''
+                        set -e
+                        SSH_OPTS="-o StrictHostKeyChecking=no"
+
+                        ssh -i "$SSH_KEY" $SSH_OPTS tom@"$DEPLOY_HOST" "
+                            set -e
+                            cd $APP_DIR
+                            git pull origin main
+                            bash scripts/render-config.sh
+                            docker compose -f docker-compose.prod.yml pull
+                            docker compose -f docker-compose.prod.yml up -d
+                            docker compose -f docker-compose.prod.yml exec -T odoo \
+                                odoo -u $CUSTOM_MODULES -d $DB_NAME --stop-after-init
+                        "
+
+                        STATUS=$(ssh -i "$SSH_KEY" $SSH_OPTS tom@"$DEPLOY_HOST" \
+                            "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8069/web/login")
+
+                        if [ "$STATUS" != "200" ]; then
+                            echo "Health check returned $STATUS, expected 200"
+                            exit 1
+                        fi
+                        echo "Health check OK ($STATUS)"
+                    '''
+                }
+            }
+        }
+    }
+}

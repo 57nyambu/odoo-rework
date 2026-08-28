@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+    GOTCHA: point_of_sale.group_pos_manager implies group_pos_user via
+    implied_ids, so a manager is *also* a member of group_pos_user. Without
+    the second rule below, the restrictive cashier rule would apply to
+    managers too (Odoo combines multiple group-specific rules on the same
+    model with OR, but only across groups that actually have a rule — a
+    manager who's a member of group_pos_user through implication still
+    matches that rule unless a broader rule for group_pos_manager exists
+    to OR against it). Always pair a restrictive rule with an explicit
+    override for any group that implies the restricted one.
+    -->
+    <record id="rule_pos_order_own_session" model="ir.rule">
+        <field name="name">Cashiers see only their own POS sessions</field>
+        <field name="model_id" ref="point_of_sale.model_pos_order"/>
+        <field name="domain_force">[('session_id.user_id', '=', user.id)]</field>
+        <field name="groups" eval="[(4, ref('point_of_sale.group_pos_user'))]"/>
+    </record>
+
+    <record id="rule_pos_order_manager_full_access" model="ir.rule">
+        <field name="name">Managers see all POS orders</field>
+        <field name="model_id" ref="point_of_sale.model_pos_order"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('point_of_sale.group_pos_manager'))]"/>
+    </record>
+</odoo>

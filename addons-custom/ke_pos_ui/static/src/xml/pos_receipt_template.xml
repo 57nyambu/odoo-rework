@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+CAUTION: this inherits the POS frontend's OWL receipt template, not a
+classic backend QWeb report. The template name and the xpath target below
+are the pattern to follow, not guaranteed-current identifiers — confirm
+both against your installed point_of_sale addon's OrderReceipt template
+before relying on this.
+-->
+<templates id="template" xml:space="preserve">
+    <t t-name="ke_pos_ui.OrderReceipt"
+       t-inherit="point_of_sale.OrderReceipt"
+       t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('pos-receipt-contact')]" position="after">
+            <t t-if="props.data.ke_etims_invoice_number">
+                <div class="ke-etims-block" style="text-align:center; margin-top:8px;">
+                    <div>KRA Invoice No: <t t-esc="props.data.ke_etims_invoice_number"/></div>
+                </div>
+            </t>
+        </xpath>
+    </t>
+</templates>

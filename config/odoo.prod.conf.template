@@ -1,0 +1,13 @@
+[options]
+addons_path = /mnt/extra-addons/custom,/mnt/extra-addons/oca
+admin_passwd = ${ODOO_ADMIN_PASSWD}
+db_host = db
+db_port = 5432
+db_user = ${ODOO_DB_USER}
+db_password = ${ODOO_DB_PASSWORD}
+proxy_mode = True
+workers = 4
+max_cron_threads = 2
+list_db = False
+logfile = /var/log/odoo/odoo.log
+log_level = info

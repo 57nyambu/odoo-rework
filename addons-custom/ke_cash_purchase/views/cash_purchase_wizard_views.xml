@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_ke_cash_purchase_wizard_form" model="ir.ui.view">
+        <field name="name">ke.cash.purchase.wizard.form</field>
+        <field name="model">ke.cash.purchase.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Cash purchase">
+                <group>
+                    <field name="partner_id"/>
+                    <field name="cash_journal_id"/>
+                    <field name="warehouse_id"/>
+                </group>
+                <field name="line_ids">
+                    <list editable="bottom">
+                        <field name="product_id"/>
+                        <field name="quantity"/>
+                        <field name="unit_price"/>
+                    </list>
+                </field>
+                <footer>
+                    <button name="action_confirm" string="Confirm" type="object" class="btn-primary"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_ke_cash_purchase_wizard" model="ir.actions.act_window">
+        <field name="name">Cash purchase</field>
+        <field name="res_model">ke.cash.purchase.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <menuitem id="menu_ke_cash_purchase"
+              name="Cash purchase"
+              parent="purchase.menu_purchase_root"
+              action="action_ke_cash_purchase_wizard"
+              sequence="15"/>
+</odoo>

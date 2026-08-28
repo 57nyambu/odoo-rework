@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_ke_daily_sales_report_pivot" model="ir.ui.view">
+        <field name="name">ke.daily.sales.report.pivot</field>
+        <field name="model">ke.daily.sales.report</field>
+        <field name="arch" type="xml">
+            <pivot>
+                <field name="sale_date" type="row" interval="day"/>
+                <field name="payment_method" type="col"/>
+                <field name="total_amount" type="measure"/>
+                <field name="tax_amount" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="action_ke_daily_sales_report" model="ir.actions.act_window">
+        <field name="name">Daily sales summary</field>
+        <field name="res_model">ke.daily.sales.report</field>
+        <field name="view_mode">pivot,graph</field>
+    </record>
+
+    <menuitem id="menu_ke_daily_sales_report"
+              name="Daily sales summary"
+              parent="point_of_sale.menu_point_of_sale_global_settings"
+              action="action_ke_daily_sales_report"
+              sequence="60"/>
+</odoo>
