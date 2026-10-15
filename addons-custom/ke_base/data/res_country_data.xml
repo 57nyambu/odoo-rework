@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- The tax ID printed on Kenyan invoices and POS receipts is the KRA
+         PIN. Relabelling the country's VAT label makes every core form,
+         report and the POS receipt ("KRA PIN: P0...") use the right term. -->
+    <record id="base.ke" model="res.country">
+        <field name="vat_label">KRA PIN</field>
+    </record>
+</odoo>

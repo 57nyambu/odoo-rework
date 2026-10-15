@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_groups_privilege_ecommerce" model="res.groups.privilege">
+        <field name="name">E-commerce integration</field>
+        <field name="sequence">50</field>
+        <field name="category_id" ref="base.module_category_sales"/>
+    </record>
+
+    <!-- Given to the technical users the API runs as: read their channel. -->
+    <record id="group_ecommerce_api_user" model="res.groups">
+        <field name="name">API integration user</field>
+        <field name="sequence">5</field>
+        <field name="privilege_id" ref="res_groups_privilege_ecommerce"/>
+    </record>
+
+    <record id="group_ecommerce_manager" model="res.groups">
+        <field name="name">Administrator</field>
+        <field name="sequence">20</field>
+        <field name="privilege_id" ref="res_groups_privilege_ecommerce"/>
+        <field name="implied_ids" eval="[(4, ref('sales_team.group_sale_manager'))]"/>
+        <field name="user_ids" eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]"/>
+    </record>
+
+    <!-- Multi-company isolation: a company only sees its own channels,
+         keys, events and logs (and API users only ever have one company). -->
+    <record id="rule_ecommerce_channel_company" model="ir.rule">
+        <field name="name">E-commerce channel: multi-company</field>
+        <field name="model_id" ref="model_ke_ecommerce_channel"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_ecommerce_api_key_company" model="ir.rule">
+        <field name="name">E-commerce API key: multi-company</field>
+        <field name="model_id" ref="model_ke_ecommerce_api_key"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_ecommerce_webhook_event_company" model="ir.rule">
+        <field name="name">E-commerce webhook event: multi-company</field>
+        <field name="model_id" ref="model_ke_ecommerce_webhook_event"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_ecommerce_request_log_company" model="ir.rule">
+        <field name="name">E-commerce request log: multi-company</field>
+        <field name="model_id" ref="model_ke_ecommerce_request_log"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+</odoo>

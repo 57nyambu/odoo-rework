@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_order_form_ke_ecommerce" model="ir.ui.view">
+        <field name="name">sale.order.form.ke.ecommerce</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='other_information']" position="before">
+                <page string="Online order" name="ke_online" invisible="not ke_channel_id">
+                    <group>
+                        <group string="Channel">
+                            <field name="ke_channel_id"/>
+                            <field name="ke_external_ref"/>
+                            <field name="ke_placed_at"/>
+                            <field name="ke_fulfilment_type"/>
+                            <field name="ke_carrier" invisible="ke_fulfilment_type != 'delivery'"/>
+                            <field name="ke_delivery_instructions"/>
+                        </group>
+                        <group string="Payment">
+                            <field name="ke_payment_state" widget="badge"
+                                   decoration-success="ke_payment_state == 'paid'"
+                                   decoration-warning="ke_payment_state == 'partial'"
+                                   decoration-danger="ke_payment_state == 'unpaid'"/>
+                            <field name="ke_amount_paid"/>
+                            <field name="ke_amount_due"/>
+                        </group>
+                    </group>
+                    <field name="ke_payment_ids" readonly="1">
+                        <list>
+                            <field name="date"/>
+                            <field name="ke_payment_method"/>
+                            <field name="ke_external_ref"/>
+                            <field name="journal_id"/>
+                            <field name="amount" sum="Total"/>
+                            <field name="currency_id" column_invisible="True"/>
+                            <field name="state" widget="badge"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_quotation_tree_ke_ecommerce" model="ir.ui.view">
+        <field name="name">sale.order.list.ke.ecommerce</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='name']" position="after">
+                <field name="ke_external_ref" optional="hide" string="Online ref"/>
+                <field name="ke_channel_id" optional="hide"/>
+                <field name="ke_payment_state" optional="hide" widget="badge"
+                       decoration-success="ke_payment_state == 'paid'"
+                       decoration-danger="ke_payment_state == 'unpaid'"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_sales_order_filter_ke_ecommerce" model="ir.ui.view">
+        <field name="name">sale.order.search.ke.ecommerce</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_sales_order_filter"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='name']" position="after">
+                <field name="ke_external_ref" string="Online reference"/>
+            </xpath>
+            <xpath expr="//filter[@name='my_sale_orders_filter']" position="after">
+                <filter name="ke_online" string="Online orders" domain="[('ke_channel_id', '!=', False)]"/>
+                <filter name="ke_unpaid_online" string="Online, unpaid"
+                        domain="[('ke_channel_id', '!=', False), ('ke_payment_state', '!=', 'paid')]"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="product_template_form_view_ke_ecommerce" model="ir.ui.view">
+        <field name="name">product.template.form.ke.ecommerce</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='categ_id']" position="after">
+                <field name="ke_ecommerce_channel_ids" widget="many2many_tags"
+                       options="{'no_create': True}" invisible="not sale_ok"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

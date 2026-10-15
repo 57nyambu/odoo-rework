@@ -1,0 +1,12 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_channel_api_user,ke.ecommerce.channel.api.user,model_ke_ecommerce_channel,group_ecommerce_api_user,1,0,0,0
+access_channel_salesman,ke.ecommerce.channel.salesman,model_ke_ecommerce_channel,sales_team.group_sale_salesman,1,0,0,0
+access_channel_manager,ke.ecommerce.channel.manager,model_ke_ecommerce_channel,group_ecommerce_manager,1,1,1,1
+access_api_key_manager,ke.ecommerce.api.key.manager,model_ke_ecommerce_api_key,group_ecommerce_manager,1,1,1,1
+access_api_scope_user,ke.ecommerce.api.scope.user,model_ke_ecommerce_api_scope,base.group_user,1,0,0,0
+access_api_scope_manager,ke.ecommerce.api.scope.manager,model_ke_ecommerce_api_scope,group_ecommerce_manager,1,1,1,1
+access_webhook_topic_user,ke.ecommerce.webhook.topic.user,model_ke_ecommerce_webhook_topic,base.group_user,1,0,0,0
+access_webhook_event_manager,ke.ecommerce.webhook.event.manager,model_ke_ecommerce_webhook_event,group_ecommerce_manager,1,1,0,1
+access_request_log_manager,ke.ecommerce.request.log.manager,model_ke_ecommerce_request_log,group_ecommerce_manager,1,0,0,1
+access_stock_snapshot_manager,ke.ecommerce.stock.snapshot.manager,model_ke_ecommerce_stock_snapshot,group_ecommerce_manager,1,0,0,1
+access_api_key_wizard_manager,ke.ecommerce.api.key.wizard.manager,model_ke_ecommerce_api_key_wizard,group_ecommerce_manager,1,1,1,0

@@ -6,19 +6,42 @@
         <field name="arch" type="xml">
             <form string="Cash purchase">
                 <group>
-                    <field name="partner_id"/>
-                    <field name="cash_journal_id"/>
-                    <field name="warehouse_id"/>
+                    <group>
+                        <field name="partner_id" context="{'res_partner_search_mode': 'supplier'}"/>
+                        <field name="date"/>
+                        <field name="reference"/>
+                    </group>
+                    <group>
+                        <field name="cash_journal_id"/>
+                        <field name="warehouse_id"/>
+                        <field name="company_id" invisible="1"/>
+                        <field name="currency_id" invisible="1"/>
+                    </group>
+                </group>
+                <group>
+                    <group>
+                        <field name="supplier_etims_invoice"/>
+                        <field name="supplier_etims_number" invisible="not supplier_etims_invoice"
+                               required="supplier_etims_invoice"/>
+                    </group>
+                    <div class="text-muted col" invisible="supplier_etims_invoice">
+                        No eTIMS invoice: the purchase is recorded without input VAT, as KRA requires.
+                    </div>
                 </group>
                 <field name="line_ids">
                     <list editable="bottom">
                         <field name="product_id"/>
                         <field name="quantity"/>
                         <field name="unit_price"/>
+                        <field name="subtotal" sum="Total"/>
+                        <field name="currency_id" column_invisible="True"/>
                     </list>
                 </field>
+                <group class="oe_subtotal_footer">
+                    <field name="amount_total"/>
+                </group>
                 <footer>
-                    <button name="action_confirm" string="Confirm" type="object" class="btn-primary"/>
+                    <button name="action_confirm" string="Record purchase" type="object" class="btn-primary"/>
                     <button string="Cancel" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>
@@ -34,7 +57,8 @@
 
     <menuitem id="menu_ke_cash_purchase"
               name="Cash purchase"
-              parent="purchase.menu_purchase_root"
+              parent="purchase.menu_procurement_management"
               action="action_ke_cash_purchase_wizard"
-              sequence="15"/>
+              groups="purchase.group_purchase_user"
+              sequence="5"/>
 </odoo>

@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_ke_mpesa_account_list" model="ir.ui.view">
+        <field name="name">ke.mpesa.account.list</field>
+        <field name="model">ke.mpesa.account</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="shortcode_type"/>
+                <field name="display_number"/>
+                <field name="environment" widget="badge"
+                       decoration-success="environment == 'production'"
+                       decoration-warning="environment == 'sandbox'"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+                <field name="c2b_registered_at" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_ke_mpesa_account_form" model="ir.ui.view">
+        <field name="name">ke.mpesa.account.form</field>
+        <field name="model">ke.mpesa.account</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_test_credentials" type="object" string="Test credentials"
+                            class="btn-primary" groups="ke_mpesa.group_mpesa_manager"/>
+                    <button name="action_register_c2b_urls" type="object" string="Register C2B URLs"
+                            groups="ke_mpesa.group_mpesa_manager"/>
+                    <button name="action_regenerate_callback_token" type="object" string="New callback URLs"
+                            groups="ke_mpesa.group_mpesa_manager"
+                            confirm="Safaricom will stop reaching Odoo until you register the new C2B URLs. Continue?"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_transactions" type="object" class="oe_stat_button" icon="fa-mobile">
+                            <field name="transaction_count" widget="statinfo" string="Payments"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
+                    <widget name="web_ribbon" title="Sandbox" bg_color="text-bg-warning"
+                            invisible="environment != 'sandbox' or not active"/>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="e.g. Moi Avenue till"/></h1>
+                    </div>
+                    <group>
+                        <group string="Business number">
+                            <field name="shortcode_type" widget="radio" options="{'horizontal': true}"/>
+                            <field name="business_shortcode"/>
+                            <field name="till_number" invisible="shortcode_type != 'till'"
+                                   required="shortcode_type == 'till'"/>
+                            <field name="display_number"/>
+                            <field name="environment"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="active" invisible="1"/>
+                        </group>
+                        <group string="Daraja credentials" groups="ke_mpesa.group_mpesa_manager">
+                            <field name="consumer_key" password="True"/>
+                            <field name="consumer_secret" password="True"/>
+                            <field name="passkey" password="True"/>
+                        </group>
+                    </group>
+                    <notebook groups="ke_mpesa.group_mpesa_manager">
+                        <page string="Callbacks" name="callbacks">
+                            <group>
+                                <field name="callback_base_url" placeholder="https://shop.example.co.ke"/>
+                                <field name="stk_callback_url" widget="CopyClipboardChar"/>
+                                <field name="c2b_confirmation_url" widget="CopyClipboardChar"/>
+                                <field name="c2b_validation_url" widget="CopyClipboardChar"/>
+                                <field name="c2b_response_type"/>
+                                <field name="c2b_registered_at"/>
+                            </group>
+                            <div class="text-muted">
+                                Safaricom must reach these HTTPS URLs from the internet. The last
+                                part of each URL is a secret: anyone who knows it can post fake
+                                callbacks, so regenerate it if it leaks.
+                            </div>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_ke_mpesa_account" model="ir.actions.act_window">
+        <field name="name">M-Pesa accounts</field>
+        <field name="res_model">ke.mpesa.account</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Connect your first till or paybill</p>
+            <p>Create an app on the Safaricom Daraja portal, then enter the shortcode,
+               consumer key, consumer secret and Lipa na M-Pesa Online passkey here.</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_ke_mpesa_transactions"
+              name="M-Pesa payments"
+              parent="account.menu_finance_receivables"
+              action="action_ke_mpesa_transaction"
+              groups="ke_mpesa.group_mpesa_user"
+              sequence="25"/>
+
+    <menuitem id="menu_ke_mpesa_accounts"
+              name="M-Pesa accounts"
+              parent="account.menu_finance_configuration"
+              action="action_ke_mpesa_account"
+              groups="ke_mpesa.group_mpesa_manager"
+              sequence="40"/>
+</odoo>

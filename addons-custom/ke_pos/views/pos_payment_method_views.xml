@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="pos_payment_method_view_form_ke_pos" model="ir.ui.view">
+        <field name="name">pos.payment.method.form.ke.pos</field>
+        <field name="model">pos.payment.method</field>
+        <field name="inherit_id" ref="point_of_sale.pos_payment_method_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='use_payment_terminal']" position="after">
+                <field name="ke_mpesa_account_id"
+                       invisible="use_payment_terminal != 'ke_mpesa'"
+                       required="use_payment_terminal == 'ke_mpesa'"
+                       options="{'no_quick_create': True}"/>
+                <field name="ke_mpesa_display_number" invisible="use_payment_terminal != 'ke_mpesa'"/>
+                <field name="ke_mpesa_allow_stk" invisible="use_payment_terminal != 'ke_mpesa'"/>
+                <field name="ke_mpesa_allow_code" invisible="use_payment_terminal != 'ke_mpesa'"/>
+            </xpath>
+            <xpath expr="//field[@name='config_ids']" position="after">
+                <field name="ke_etims_payment_type"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

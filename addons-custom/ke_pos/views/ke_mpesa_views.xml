@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_ke_mpesa_account_form_ke_pos" model="ir.ui.view">
+        <field name="name">ke.mpesa.account.form.ke.pos</field>
+        <field name="model">ke.mpesa.account</field>
+        <field name="inherit_id" ref="ke_mpesa.view_ke_mpesa_account_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_ke_create_pos_payment_method" type="object"
+                        string="Create POS payment method"
+                        groups="point_of_sale.group_pos_manager"
+                        confirm="Create an M-Pesa bank journal and a Point of Sale payment method for this account?"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_ke_mpesa_transaction_form_ke_pos" model="ir.ui.view">
+        <field name="name">ke.mpesa.transaction.form.ke.pos</field>
+        <field name="model">ke.mpesa.transaction</field>
+        <field name="inherit_id" ref="ke_mpesa.view_ke_mpesa_transaction_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_release_claim" type="object" string="Release for another sale"
+                        invisible="not claimed or pos_payment_id"
+                        groups="ke_mpesa.group_mpesa_manager"
+                        confirm="Make this payment available for another sale?"/>
+            </xpath>
+            <xpath expr="//field[@name='claim_reference']" position="after">
+                <field name="pos_order_id" invisible="not pos_order_id"/>
+                <field name="pos_payment_id" invisible="1"/>
+            </xpath>
+        </field>
+    </record>
+
+    <menuitem id="menu_ke_pos_mpesa_transactions"
+              name="M-Pesa payments"
+              parent="point_of_sale.menu_point_of_sale"
+              action="ke_mpesa.action_ke_mpesa_transaction"
+              groups="point_of_sale.group_pos_manager"
+              sequence="40"/>
+
+    <menuitem id="menu_ke_pos_mpesa_accounts"
+              name="M-Pesa accounts"
+              parent="point_of_sale.menu_point_config_product"
+              action="ke_mpesa.action_ke_mpesa_account"
+              groups="ke_mpesa.group_mpesa_manager"
+              sequence="45"/>
+</odoo>

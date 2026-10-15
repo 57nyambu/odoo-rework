@@ -1,259 +1,226 @@
-# Odoo Kenya ERP/POS — README
+# Odoo Kenya ERP / POS
 
-Everything referenced below is in this folder — a working, syntax-checked repo skeleton (Python compiles, XML is well-formed, YAML parses, manifests load). Unzip it and follow this top to bottom. It won't run a full checkout end-to-end on its own — the eTIMS connector and a few POS-frontend details need the version-specific fixes flagged below — but every file is real, in the right place, and wired together correctly.
+Odoo 19 Community, adapted to the Kenyan market and packaged for
+multi-tenant hosting:
+
+- **Point of Sale for Kenya** - M-Pesa STK push and "verify M-Pesa code"
+  (customer paid to the till), KRA eTIMS signed receipts with QR code,
+  KRA PIN on customers, VAT-inclusive pricing (16% / 8% / 0% / exempt),
+  KES 1.00 rounding, branch restrictions for cashiers.
+- **KRA eTIMS layer** for invoices, credit notes and POS receipts: queue
+  with retries, never blocks a sale, pluggable OSCU/VSCU connector.
+- **M-Pesa (Safaricom Daraja)**: STK push, status queries, C2B callbacks,
+  anti double-use, Data Protection Act safeguards.
+- **E-commerce Exchange API**: REST + signed webhooks so an online shop
+  shares the catalog, branch stock, orders, payments, deliveries and
+  eTIMS invoices with Odoo.
+- **Multi-tenancy**: one database per business behind its own sub-domain,
+  plus Odoo multi-company inside a tenant; provisioning/upgrade/backup tooling.
+
+Everything Kenyan lives in `addons-custom/ke_*`; standard Odoo is extended,
+not forked. The modules are installed and tested on Odoo 19.0 (59 automated
+tests, see [Tests](#tests)).
+
+## Documentation
+
+| Document | For |
+|---|---|
+| [docs/POS_USER_GUIDE.md](docs/POS_USER_GUIDE.md) | Shop owners, managers, cashiers: setup and daily use of the POS, M-Pesa, eTIMS, reports. |
+| [docs/MPESA_SETUP.md](docs/MPESA_SETUP.md) | Connecting a till/paybill (Daraja sandbox → production), callbacks, troubleshooting. |
+| [docs/ETIMS.md](docs/ETIMS.md) | eTIMS behaviour, configuration, writing an OSCU/VSCU connector, go-live checklist. |
+| [docs/ECOMMERCE_API.md](docs/ECOMMERCE_API.md) | API reference: authentication, endpoints, errors, webhooks. |
+| [docs/ECOMMERCE_INTEGRATION_GUIDE.md](docs/ECOMMERCE_INTEGRATION_GUIDE.md) | Step-by-step integration for shop developers, with Node.js / PHP / Python code. |
+| [addons-custom/ke_ecommerce_api/static/api/openapi.yaml](addons-custom/ke_ecommerce_api/static/api/openapi.yaml) | OpenAPI 3.1 spec (Postman, Swagger, client generators). |
+| [docs/MULTI_TENANCY.md](docs/MULTI_TENANCY.md) | Operators: DNS/TLS, creating and upgrading tenants, backups, isolation. |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Developers: module map, flows, security model, Odoo 19 notes. |
+
+## Repository layout
 
 ```
 odoo-kenya/
-├── docker-compose.yml              # dev
+├── docker-compose.yml              # dev (Odoo 19 + PostgreSQL 16)
 ├── docker-compose.prod.yml         # prod
 ├── .env.example                    # copy to .env in prod, never commit .env
 ├── config/
-│   ├── odoo.conf                   # dev config, used as-is
-│   └── odoo.prod.conf.template     # prod config, rendered via envsubst
+│   ├── odoo.conf                   # dev config
+│   └── odoo.prod.conf.template     # prod config (dbfilter per sub-domain), rendered from .env
 ├── scripts/
 │   ├── render-config.sh            # .env + template → config/odoo.conf
-│   └── backup.sh                   # pg_dump + filestore tar, for cron
+│   ├── tenant.sh                   # create / list / upgrade / backup / drop tenants
+│   ├── tenant_setup.py             # Kenyan company + chart of accounts setup (run by tenant.sh)
+│   └── backup.sh                   # backup all tenants (cron)
 ├── deploy/
-│   ├── nginx/odoo-kenya.conf
-│   └── Jenkinsfile
-├── addons-oca/                     # empty — git-submodule OCA modules here
+│   ├── nginx/odoo-kenya.conf       # wildcard sub-domains, websocket, API rate limit
+│   └── Jenkinsfile                 # checks, backup + upgrade all tenants, health check
+├── docs/                           # see table above
+├── addons-oca/                     # optional OCA modules (git submodules)
 └── addons-custom/
-    ├── ke_base/                    # phone normalization, shared helpers
-    ├── ke_etims/                   # swappable eTIMS interface
-    ├── ke_mpesa/                   # Daraja STK Push + webhook + POS payment method
-    ├── ke_pos_ui/                  # branding, receipt template, checkout patches
-    ├── ke_cash_purchase/           # one-step cash purchase wizard
-    ├── ke_uac/                     # custom groups + record rules
-    └── ke_reporting/               # daily sales/VAT dashboard
+    ├── ke_base/                    # KRA PIN, phone formats, Data Protection helpers
+    ├── ke_etims/                   # eTIMS gateway, queue, tax types, invoice QR
+    ├── ke_mpesa/                   # Daraja client, STK push, C2B callbacks
+    ├── ke_pos/                     # Kenyan POS (M-Pesa terminal, eTIMS receipts)
+    ├── ke_ecommerce_api/           # REST API + webhooks for online shops
+    ├── ke_cash_purchase/           # one-step cash purchases (KRA input-VAT rule)
+    ├── ke_uac/                     # retail roles, per-cashier shop restriction
+    └── ke_reporting/               # daily collections, VAT by eTIMS category
 ```
 
----
+## Modules
 
-## Before you start: three things that need a decision or a version check
-
-1. **eTIMS connector.** `ke_etims/models/etims_service.py` defines the interface but deliberately raises `UserError` — there's no real KRA connector wired in. Per the execution plan, buy a vetted OSCU/VSCU connector module and add a second module that depends on `ke_etims` and overrides `sign_and_submit`. Don't skip this before going live; it's the one piece that's genuinely a placeholder.
-2. **POS frontend internals.** `ke_mpesa/static/src/js/payment_mpesa.js` and `ke_pos_ui/static/src/js/pos_ui_patch.js` both use OWL import paths and method names (`PaymentInterface`, `send_payment_request`, `ProductScreen.addProductToOrder`) that shift between Odoo point releases more than anything else in the codebase. Before relying on them, run:
-   ```bash
-   grep -rn "class PaymentInterface" /path/to/odoo/addons/point_of_sale/static/src/
-   grep -rn "send_payment_request" /path/to/odoo/addons/point_of_sale/static/src/
-   ```
-   against your actual installed Odoo 19 source and fix the import paths/method names to match. The files are marked with `CAUTION` comments at exactly this spot.
-3. **Stock quantity field name.** `ke_cash_purchase/models/cash_purchase_wizard.py` sets `move.quantity_done` — this field has been renamed across Odoo versions (`qty_done` → `quantity_done` → `quantity` depending on release). If module install or the wizard throws an `AttributeError` there, `grep -rn "qty_done\|quantity_done" addons/stock/models/stock_move.py` in your installed source and fix the one line.
-
-Everything else below is either standard Odoo (won't have shifted) or infrastructure you control directly (nginx, Docker, Jenkins).
-
----
-
-## Part 1 — Local setup
-
-### 1.1 Prerequisites
-
-| Component | Version |
+| Module | What it adds |
 |---|---|
-| Docker + Compose | any recent stable |
-| Git | any |
+| `ke_base` | KRA PIN validation (`A`/`P` + 9 digits + letter) and normalisation, "KRA PIN" label, Kenyan MSISDN normalisation, phone masking. |
+| `ke_etims` | Company eTIMS settings, eTIMS tax type (A–E) on taxes, item data on products, transmission queue + cron, "Send to eTIMS", credit-note rules, QR on invoice PDF, training connector. |
+| `ke_mpesa` | M-Pesa accounts (till/paybill, credentials), STK push + query, C2B URL registration, callbacks with secret URLs and IP allow-list, transaction log, claims, crons. |
+| `ke_pos` | POS M-Pesa terminal (dialog with STK push / code verification), eTIMS signing before printing, receipt additions, KES 1.00 rounding, eTIMS payment types, one-click M-Pesa payment method setup. |
+| `ke_ecommerce_api` | Channels, hashed scoped API keys, REST endpoints, webhook outbox (HMAC signed, retried), request logs, stock change notifications, online payments → invoice → eTIMS. |
+| `ke_cash_purchase` | Cash purchase wizard → PO, receipt, bill, payment; no input VAT without a supplier eTIMS invoice. |
+| `ke_uac` | Cashier / Branch Manager roles; "Allowed shops" per user. |
+| `ke_reporting` | Daily collections by payment method; VAT by eTIMS tax category. |
 
-You don't need Python, PostgreSQL, or Node installed on the host — the dev `docker-compose.yml` runs Odoo and Postgres in containers. You'll only need Python/Node locally if you start developing the JS/CSS assets outside a container.
+## Quick start (development)
 
-### 1.2 Get the scaffold running
+Prerequisites: Docker + Compose, Git.
 
 ```bash
-# 1. Unzip and enter the project
-unzip odoo-kenya-scaffold.zip
-cd odoo-kenya
-
-# 2. Turn this into its own git repo — addons-custom is what your Jenkins
-#    pipeline will pull in production, so it needs its own history from day one
-git init
-git add .
-git commit -m "Initial scaffold: dev/prod compose, ke_* addon skeletons"
-
-# 3. Start Postgres + Odoo
+git clone <repo> odoo-kenya && cd odoo-kenya
 docker compose up -d
-
-# 4. Watch the logs until Odoo reports it's listening on 8069
-docker compose logs -f odoo
+docker compose logs -f odoo          # wait for "HTTP service ... running"
 ```
 
-### 1.3 Create the working database with Kenya localization
+Create a Kenyan database (company country **must** be Kenya before the
+accounting modules are installed):
 
 ```bash
-docker compose exec odoo odoo \
-    -d odoo_kenya --without-demo=all --stop-after-init \
-    -i base
-```
-
-Then open `http://localhost:8069`, log in as `admin` (Odoo will have prompted you to set the master password / create the db if you skip the CLI step above — either path works, but the CLI path is faster and reproducible).
-
-**Before installing anything accounting-related:** go to **Settings → General Settings**, set the company **Country** to **Kenya**. This is what makes `l10n_ke` auto-install as the fiscal localization when you install Invoicing. Installing Invoicing first with the wrong country set loads the generic chart of accounts, and re-doing that later is a real headache — don't skip the order here.
-
-### 1.4 Install the core apps (in this order)
-
-From the Apps menu (or `-i` on the CLI, comma-separated), install:
-
-```
-contacts, stock, sale, sale_stock, purchase, purchase_stock, account, point_of_sale, stock_barcode
-```
-
-CLI equivalent:
-```bash
-docker compose exec odoo odoo \
-    -d odoo_kenya --stop-after-init \
-    -i contacts,stock,sale,sale_stock,purchase,purchase_stock,account,point_of_sale,stock_barcode
-```
-
-### 1.5 Install the custom addons
-
-They're already mounted into the container at `/mnt/extra-addons/custom` via `docker-compose.yml`. Install in dependency order (Odoo will actually resolve this for you via `depends`, but explicit is easier to debug if something fails):
-
-```bash
-docker compose exec odoo odoo \
-    -d odoo_kenya --stop-after-init \
-    -i ke_base,ke_etims,ke_mpesa,ke_pos_ui,ke_cash_purchase,ke_uac,ke_reporting
-```
-
-If `ke_etims` fails to install because `l10n_ke` isn't present, it means the company country wasn't set to Kenya before this step — go back to §1.3.
-
-### 1.6 Iterating on custom module code
-
-Restart isn't needed for most changes — Odoo can hot-reload with `-u` (update) while the container keeps running:
-
-```bash
-# after editing a model, view, or manifest in ke_mpesa:
-docker compose exec odoo odoo -d odoo_kenya -u ke_mpesa --stop-after-init
+docker compose exec odoo odoo -d odoo_kenya -i base --stop-after-init --no-http
+docker compose exec -T -e SETUP_PHASE=company -e COMPANY_NAME="Duka Bora Ltd" \
+    -e KRA_PIN=P051234567X -e BASE_URL=http://localhost:8069 \
+    odoo odoo shell -d odoo_kenya --no-http < scripts/tenant_setup.py
+docker compose exec odoo odoo -d odoo_kenya --stop-after-init --no-http \
+    -i contacts,sale_management,sale_stock,purchase_stock,point_of_sale,ke_base,ke_etims,ke_mpesa,ke_pos,ke_ecommerce_api,ke_cash_purchase,ke_uac,ke_reporting
+docker compose exec -T -e SETUP_PHASE=finalize -e BASE_URL=http://localhost:8069 \
+    odoo odoo shell -d odoo_kenya --no-http < scripts/tenant_setup.py
 docker compose restart odoo
 ```
 
-For pure JS/CSS changes (POS frontend assets), a hard-refresh in the browser is often enough without a module update — Odoo serves assets from disk in dev mode. If it doesn't pick up, add `?debug=assets` to the POS URL to force asset recompilation.
+The `company` phase prints the generated admin password. Open
+<http://localhost:8069>, then follow [docs/POS_USER_GUIDE.md](docs/POS_USER_GUIDE.md) §2
+(M-Pesa account, POS payment methods, users).
 
-### 1.7 Configuring M-Pesa for local testing
-
-In the Odoo backend: **Point of Sale → Configuration → Payment Methods**, create one with `ke_is_mpesa` checked, environment set to **Sandbox**, and your Daraja sandbox consumer key/secret/shortcode/passkey (get these from the [Safaricom Developer Portal](https://developer.safaricom.co.ke) — same sandbox credentials pattern you've used before). The callback URL Daraja needs is `http://<your-ngrok-or-tunnel-url>/ke_mpesa/callback` — Daraja can't reach `localhost` directly, so tunnel with ngrok or similar for local STK Push testing.
-
----
-
-## Part 2 — Production setup
-
-Target: the existing Contabo VPS (`vmi3055286`), single user `tom`, same conventions as your other apps.
-
-### 2.1 Provision the app directory
+Iterating on code:
 
 ```bash
-ssh tom@<host>
-mkdir -p /home/tom/apps/odoo-kenya
-cd /home/tom/apps/odoo-kenya
-git clone <your-addons-custom-remote-or-full-repo-url> .
+docker compose exec odoo odoo -d odoo_kenya -u ke_pos --stop-after-init --no-http
+docker compose restart odoo
 ```
 
-### 2.2 Set up secrets
+POS assets (JS/XML/SCSS) reload with `?debug=assets` on the POS URL.
 
-```bash
-cp .env.example .env
-nano .env   # fill in real ODOO_DB_PASSWORD, ODOO_ADMIN_PASSWD, etc.
-```
+M-Pesa callbacks need a public HTTPS URL: use a tunnel (ngrok,
+cloudflared) and set it as *Callback base URL* on the M-Pesa account.
 
-`.env` should already be in `.gitignore` — double-check before your first commit from this checkout, since it's easy to accidentally commit it from a fresh clone.
+## Production
 
-### 2.3 Render the production config
-
-```bash
-# needs gettext-base for envsubst — install if missing:
-sudo apt-get install -y gettext-base
-
-bash scripts/render-config.sh
-```
-
-This reads `.env` + `config/odoo.prod.conf.template` and writes `config/odoo.conf` — the actual file Docker mounts. Re-run this any time you change `.env`.
-
-### 2.4 First boot in production
-
-```bash
-docker compose -f docker-compose.prod.yml up -d
-docker compose -f docker-compose.prod.yml exec odoo odoo \
-    -d "$ODOO_DB_NAME" --without-demo=all --stop-after-init -i base
-```
-
-Set the company country to Kenya (§1.3) before installing accounting, same as dev. Then install the same app list as §1.4 and §1.5, swapping `docker compose` for `docker compose -f docker-compose.prod.yml`.
-
-### 2.5 nginx
-
-```bash
-sudo cp deploy/nginx/odoo-kenya.conf /etc/nginx/sites-available/odoo-kenya
-sudo ln -s /etc/nginx/sites-available/odoo-kenya /etc/nginx/sites-enabled/odoo-kenya
-sudo nginx -t
-```
-
-Edit `server_name` in that file to your real domain before the `nginx -t` check — it'll still pass with the placeholder, but won't route real traffic.
-
-### 2.6 SSL
-
-```bash
-sudo certbot --nginx -d erp.yourdomain.com
-```
-
-Certbot rewrites the `443` server block to add `ssl_certificate`/`ssl_certificate_key` lines automatically — don't hand-add them first, and don't re-run `render-config.sh` or re-copy the nginx file afterward without diffing, or you'll clobber Certbot's edits.
-
-```bash
-sudo systemctl reload nginx
-```
-
-### 2.7 First deploy via Jenkins
-
-Point a new Jenkins pipeline job at `deploy/Jenkinsfile`. It assumes:
-- a credential named `motorgarage-ssh` (SSH private key, authenticates as `tom`) — reuse the existing one
-- a credential named `sv2-host` (secret text, the deploy host) — reuse or create to match your convention
-
-Check the exact credential-binding syntax against one of your existing Jenkinsfiles before the first run — this one mirrors the pattern (same SSH key, same `-i "$SSH_KEY" $SSH_OPTS` word-splitting guard, same route-agnostic `curl -s` health check) but wasn't copied from a specific working file, so the Groovy credential bindings are worth a quick sanity check.
-
-### 2.8 Subsequent deploys
-
-Same pipeline, re-run. It pulls `addons-custom`, re-renders config, restarts containers, runs `-u` on all seven custom modules, and health-checks `/web/login`. For a manual deploy without Jenkins:
+Target: the Contabo VPS, user `tom`, Docker Compose, nginx, Jenkins - see
+[docs/MULTI_TENANCY.md](docs/MULTI_TENANCY.md) for details.
 
 ```bash
 cd /home/tom/apps/odoo-kenya
-git pull origin main
-bash scripts/render-config.sh
-docker compose -f docker-compose.prod.yml pull
+cp .env.example .env && nano .env              # passwords, TENANT_DOMAIN, KE_MODULES
+bash scripts/render-config.sh                  # writes config/odoo.conf (dbfilter ^%d$)
 docker compose -f docker-compose.prod.yml up -d
-docker compose -f docker-compose.prod.yml exec -T odoo \
-    odoo -u ke_base,ke_etims,ke_mpesa,ke_pos_ui,ke_cash_purchase,ke_uac,ke_reporting \
-    -d "$ODOO_DB_NAME" --stop-after-init
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8069/web/login
+sudo cp deploy/nginx/odoo-kenya.conf /etc/nginx/sites-available/odoo-kenya   # edit domain
+sudo ln -s /etc/nginx/sites-available/odoo-kenya /etc/nginx/sites-enabled/
+# wildcard certificate via DNS-01 (see MULTI_TENANCY.md), then:
+sudo nginx -t && sudo systemctl reload nginx
+
+bash scripts/tenant.sh create duka "Duka Bora Ltd" P051234567X owner@duka.co.ke
+# → https://duka.pos.dima.co.ke
 ```
 
-### 2.9 Backups
-
-Wire `scripts/backup.sh` into your existing `db-backup-service` cron job rather than running it standalone — it needs `ODOO_DB_NAME`/`ODOO_DB_USER` sourced from `.env` first:
+Deployments: the Jenkins pipeline (`deploy/Jenkinsfile`) pulls, backs up
+**all** tenants, upgrades **all** tenants and health-checks. Manual
+equivalent:
 
 ```bash
-set -a; source /home/tom/apps/odoo-kenya/.env; set +a
-bash /home/tom/apps/odoo-kenya/scripts/backup.sh /home/tom/backups/odoo-kenya
+git pull origin main && bash scripts/render-config.sh
+docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d
+bash scripts/tenant.sh backup-all && bash scripts/tenant.sh upgrade-all
+docker compose -f docker-compose.prod.yml restart odoo
 ```
 
-Then let the existing GFS rotation + rclone-to-Contabo-S3 logic pick up the dated `.sql` and `.tar.gz` files from that output directory, same as your other apps.
+Backups: wire `scripts/backup.sh <dir>` into the existing db-backup-service
+cron (custom-format dump + filestore per tenant, picked up by the GFS
+rotation / rclone sync).
 
-### 2.10 Permissions
+## Before going live
 
-Same rule as everywhere else on this box: any permission issue on `/home/tom/apps/odoo-kenya` is `sudo chown -R tom:tom /home/tom/apps/odoo-kenya`. No per-app user.
+1. **eTIMS**: the built-in connector is *training mode* (numbers prefixed
+   `TRAIN`, receipts marked "not a valid tax invoice", refused in production).
+   Install a vetted OSCU/VSCU connector module (interface documented in
+   [docs/ETIMS.md](docs/ETIMS.md)) and switch each company to it.
+2. **M-Pesa**: production Daraja app, production M-Pesa account, C2B URLs
+   registered, a KES 1 test sale ([docs/MPESA_SETUP.md](docs/MPESA_SETUP.md)).
+3. **POS**: KES 1.00 rounding, receipt header/footer, cashiers' allowed shops,
+   stock updated in real time if you sell online.
+4. **API**: production API keys with minimal scopes, webhook secret shared,
+   nginx rate limiting active.
 
----
+## Tests
 
-## Common operations cheatsheet
+Every module has automated tests tagged `ke` (KRA PIN/phone rules, eTIMS
+queue and credit notes, Daraja calls (mocked) and real HTTP callbacks, POS
+orders with M-Pesa and eTIMS, double-claim protection, the whole REST API
+over HTTP including webhook signatures and multi-company isolation, cash
+purchases, shop restrictions, reports):
+
+```bash
+docker compose exec odoo odoo -d test_ke --stop-after-init --no-http -i base
+# set the company to Kenya (tenant_setup.py company phase), then:
+docker compose exec odoo odoo -d test_ke --stop-after-init --no-http \
+    -i ke_base,ke_etims,ke_mpesa,ke_pos,ke_ecommerce_api,ke_cash_purchase,ke_uac,ke_reporting \
+    --test-enable --test-tags ke
+```
+
+Last run on Odoo 19.0: **59 tests, 0 failures** on a fresh database.
+
+## Upgrading from the original scaffold
+
+The first version of this repository was a skeleton that could not run on
+Odoo 19 as-is. If a database was created from it:
+
+- `ke_pos_ui` is replaced by `ke_pos`: uninstall `ke_pos_ui`, install `ke_pos`.
+- The M-Pesa log model is now `ke.mpesa.transaction` (was `mpesa.transaction`);
+  M-Pesa credentials moved from POS payment methods to *M-Pesa accounts*.
+- The M-Pesa callback URL changed from `/ke_mpesa/callback` (refused by
+  Daraja) to `/ke/lipa/stk/<secret>`; see the M-Pesa account *Callbacks* tab.
+- Invoices no longer fail to post without an eTIMS connector: they are queued.
+
+The full list of Odoo 19 incompatibilities that were fixed is in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#5-odoo-19-specifics-handled).
+
+## Common operations
 
 | Task | Command |
 |---|---|
-| Tail Odoo logs (dev) | `docker compose logs -f odoo` |
-| Tail Odoo logs (prod) | `docker compose -f docker-compose.prod.yml exec odoo tail -f /var/log/odoo/odoo.log` |
-| Odoo shell (inspect/debug records) | `docker compose exec odoo odoo shell -d odoo_kenya` |
-| Upgrade one module | `docker compose exec odoo odoo -u ke_mpesa -d odoo_kenya --stop-after-init` |
-| Restart just the app container | `docker compose restart odoo` |
-| Drop and recreate the dev DB | `docker compose exec odoo odoo -d odoo_kenya --stop-after-init -i base` after dropping via `dropdb` in the `db` container |
-| Restore a backup locally | `docker compose exec -T db psql -U odoo -d odoo_kenya < backup.sql` |
+| Tail logs (dev) | `docker compose logs -f odoo` |
+| Tail logs (prod) | `docker compose -f docker-compose.prod.yml exec odoo tail -f /var/log/odoo/odoo.log` |
+| Odoo shell | `docker compose exec odoo odoo shell -d <db> --no-http` |
+| Upgrade one module (dev) | `docker compose exec odoo odoo -d odoo_kenya -u ke_mpesa --stop-after-init --no-http` |
+| List tenants (prod) | `bash scripts/tenant.sh list` |
+| Upgrade one tenant | `bash scripts/tenant.sh upgrade <tenant>` |
+| Back up one tenant | `bash scripts/tenant.sh backup <tenant>` |
+| Pending eTIMS documents | Invoicing → Customers → Invoices, filter *eTIMS pending* (POS: Orders, same filter) |
+| Unclaimed M-Pesa payments | Point of Sale → Orders → M-Pesa payments, filter *Unclaimed payments* |
+| API errors | Sales → Configuration → E-commerce integration → API request logs |
 
 ## Troubleshooting
 
-- **Module fails to install with a missing-dependency error on `l10n_ke`** — company country isn't set to Kenya yet. Fix in Settings, then retry the `-i`/`-u`.
-- **`AttributeError` on `quantity_done`** — see the caveat in §"Before you start", item 3.
-- **POS payment screen doesn't show M-Pesa, or throws a JS console error on `PaymentInterface`** — see item 2; the OWL import path in `payment_mpesa.js` needs to match your installed version.
-- **eTIMS submission raises "No eTIMS connector is configured"** — expected until you install a connector module that overrides `ke.etims.service.sign_and_submit`. This isn't a bug, it's the interface doing its job.
-- **Daraja callback never arrives locally** — `localhost` isn't reachable from Safaricom's servers; you need a tunnel (ngrok, cloudflared) for local STK Push testing, and the tunnel URL has to be set as the payment method's callback base or matched by `web.base.url` in Odoo's system parameters.
+| Symptom | Fix |
+|---|---|
+| Generic chart of accounts / `l10n_ke` missing | The company country was not Kenya before accounting was installed. Use `tenant_setup.py` (it sets the country first and loads the `ke` chart). |
+| POS M-Pesa: "only accepts whole shillings" | Enable KES 1.00 cash rounding on the POS (not only for cash). |
+| STK push never confirms | Callback URL not reachable; Odoo still confirms via status query after 15 s. Check *Callback base URL* (public HTTPS). |
+| Receipt shows "Transmission to KRA pending" | KRA/connector unreachable; the queue retries every 5 minutes. |
+| API 404 "No database is selected" | Call the tenant host (`https://<tenant>.<domain>`) or send `X-Odoo-Database`. |
+| Webhooks not received | Channel webhook URL/events; *Webhook deliveries* shows each attempt and error. |

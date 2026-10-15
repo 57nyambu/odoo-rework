@@ -1,27 +1,96 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- Daily collections -->
     <record id="view_ke_daily_sales_report_pivot" model="ir.ui.view">
         <field name="name">ke.daily.sales.report.pivot</field>
         <field name="model">ke.daily.sales.report</field>
         <field name="arch" type="xml">
-            <pivot>
+            <pivot string="Daily collections">
                 <field name="sale_date" type="row" interval="day"/>
-                <field name="payment_method" type="col"/>
-                <field name="total_amount" type="measure"/>
+                <field name="payment_method_id" type="col"/>
+                <field name="amount" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_ke_daily_sales_report_graph" model="ir.ui.view">
+        <field name="name">ke.daily.sales.report.graph</field>
+        <field name="model">ke.daily.sales.report</field>
+        <field name="arch" type="xml">
+            <graph string="Daily collections" type="bar" stacked="1">
+                <field name="sale_date" interval="day"/>
+                <field name="payment_method_id"/>
+                <field name="amount" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="view_ke_daily_sales_report_search" model="ir.ui.view">
+        <field name="name">ke.daily.sales.report.search</field>
+        <field name="model">ke.daily.sales.report</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="config_id"/>
+                <field name="payment_method_id"/>
+                <filter name="date" string="Date" date="sale_date"/>
+                <group>
+                    <filter name="group_shop" string="Shop" context="{'group_by': 'config_id'}"/>
+                    <filter name="group_method" string="Payment method" context="{'group_by': 'payment_method_id'}"/>
+                    <filter name="group_company" string="Company" context="{'group_by': 'company_id'}"
+                            groups="base.group_multi_company"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_ke_daily_sales_report" model="ir.actions.act_window">
+        <field name="name">Daily collections</field>
+        <field name="res_model">ke.daily.sales.report</field>
+        <field name="view_mode">pivot,graph</field>
+        <field name="context">{'search_default_date': 1}</field>
+    </record>
+
+    <!-- VAT by eTIMS category -->
+    <record id="view_ke_vat_sales_report_pivot" model="ir.ui.view">
+        <field name="name">ke.vat.sales.report.pivot</field>
+        <field name="model">ke.vat.sales.report</field>
+        <field name="arch" type="xml">
+            <pivot string="VAT by eTIMS category">
+                <field name="sale_date" type="row" interval="month"/>
+                <field name="etims_tax_type" type="col"/>
+                <field name="taxable_amount" type="measure"/>
                 <field name="tax_amount" type="measure"/>
             </pivot>
         </field>
     </record>
 
-    <record id="action_ke_daily_sales_report" model="ir.actions.act_window">
-        <field name="name">Daily sales summary</field>
-        <field name="res_model">ke.daily.sales.report</field>
-        <field name="view_mode">pivot,graph</field>
+    <record id="view_ke_vat_sales_report_search" model="ir.ui.view">
+        <field name="name">ke.vat.sales.report.search</field>
+        <field name="model">ke.vat.sales.report</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="config_id"/>
+                <field name="etims_tax_type"/>
+                <filter name="date" string="Date" date="sale_date"/>
+                <group>
+                    <filter name="group_type" string="eTIMS tax type" context="{'group_by': 'etims_tax_type'}"/>
+                    <filter name="group_shop" string="Shop" context="{'group_by': 'config_id'}"/>
+                </group>
+            </search>
+        </field>
     </record>
 
-    <menuitem id="menu_ke_daily_sales_report"
-              name="Daily sales summary"
-              parent="point_of_sale.menu_point_of_sale_global_settings"
-              action="action_ke_daily_sales_report"
-              sequence="60"/>
+    <record id="action_ke_vat_sales_report" model="ir.actions.act_window">
+        <field name="name">VAT by eTIMS category</field>
+        <field name="res_model">ke.vat.sales.report</field>
+        <field name="view_mode">pivot</field>
+    </record>
+
+    <menuitem id="menu_ke_reporting_root" name="Kenya"
+              parent="point_of_sale.menu_point_rep" sequence="50"
+              groups="point_of_sale.group_pos_manager"/>
+    <menuitem id="menu_ke_daily_sales_report" name="Daily collections"
+              parent="menu_ke_reporting_root" action="action_ke_daily_sales_report" sequence="10"/>
+    <menuitem id="menu_ke_vat_sales_report" name="VAT by eTIMS category"
+              parent="menu_ke_reporting_root" action="action_ke_vat_sales_report" sequence="20"/>
 </odoo>

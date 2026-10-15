@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- Receipt counter used only by the training/demo connector. -->
+    <record id="seq_ke_etims_demo_receipt" model="ir.sequence">
+        <field name="name">eTIMS training receipt number</field>
+        <field name="code">ke.etims.demo.receipt</field>
+        <field name="padding">0</field>
+        <field name="company_id" eval="False"/>
+    </record>
+</odoo>

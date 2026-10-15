@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_pos_pos_form_ke_pos" model="ir.ui.view">
+        <field name="name">pos.order.form.ke.pos</field>
+        <field name="model">pos.order</field>
+        <field name="inherit_id" ref="point_of_sale.view_pos_pos_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_ke_etims_send" type="object" string="Send to eTIMS"
+                        invisible="ke_etims_state not in ('to_send', 'error')"
+                        groups="point_of_sale.group_pos_manager"/>
+            </xpath>
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_ke_mpesa_transactions" type="object" class="oe_stat_button"
+                        icon="fa-mobile" string="M-Pesa" invisible="state == 'draft'"
+                        groups="ke_mpesa.group_mpesa_user"/>
+            </xpath>
+            <xpath expr="//page[@name='extra']" position="after">
+                <page string="eTIMS" name="ke_etims">
+                    <div class="alert alert-danger" role="alert" invisible="ke_etims_state != 'error'">
+                        <field name="ke_etims_error" readonly="1"/>
+                    </div>
+                    <div class="alert alert-warning" role="alert" invisible="not ke_etims_training">
+                        Signed in eTIMS <strong>training mode</strong>: not a valid tax receipt.
+                    </div>
+                    <group>
+                        <group string="KRA eTIMS">
+                            <field name="ke_etims_state" widget="badge"
+                                   decoration-success="ke_etims_state == 'sent'"
+                                   decoration-warning="ke_etims_state == 'to_send'"
+                                   decoration-danger="ke_etims_state == 'error'"/>
+                            <field name="ke_etims_invoice_number"/>
+                            <field name="ke_etims_scu_id"/>
+                            <field name="ke_etims_receipt_number"/>
+                            <field name="ke_etims_signed_at"/>
+                            <field name="ke_etims_training" invisible="1"/>
+                        </group>
+                        <group string="Signature">
+                            <field name="ke_etims_internal_data"/>
+                            <field name="ke_etims_signature"/>
+                            <field name="ke_etims_attempts"/>
+                            <field name="ke_etims_last_attempt_at"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_pos_order_tree_ke_pos" model="ir.ui.view">
+        <field name="name">pos.order.list.ke.pos</field>
+        <field name="model">pos.order</field>
+        <field name="inherit_id" ref="point_of_sale.view_pos_order_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='state']" position="after">
+                <field name="ke_etims_state" string="eTIMS" optional="show" widget="badge"
+                       decoration-success="ke_etims_state == 'sent'"
+                       decoration-warning="ke_etims_state == 'to_send'"
+                       decoration-danger="ke_etims_state == 'error'"/>
+                <field name="ke_etims_invoice_number" optional="hide"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_pos_order_filter_ke_pos" model="ir.ui.view">
+        <field name="name">pos.order.search.ke.pos</field>
+        <field name="model">pos.order</field>
+        <field name="inherit_id" ref="point_of_sale.view_pos_order_filter"/>
+        <field name="arch" type="xml">
+            <xpath expr="//filter[@name='invoiced']" position="after">
+                <separator/>
+                <filter name="ke_etims_pending" string="eTIMS pending"
+                        domain="[('ke_etims_state', 'in', ('to_send', 'error'))]"/>
+                <filter name="ke_etims_failed" string="eTIMS errors" domain="[('ke_etims_state', '=', 'error')]"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="action_ke_etims_send_pos_orders" model="ir.actions.server">
+        <field name="name">Send to eTIMS</field>
+        <field name="model_id" ref="point_of_sale.model_pos_order"/>
+        <field name="binding_model_id" ref="point_of_sale.model_pos_order"/>
+        <field name="binding_view_types">list</field>
+        <field name="group_ids" eval="[(4, ref('point_of_sale.group_pos_manager'))]"/>
+        <field name="state">code</field>
+        <field name="code">action = records.action_ke_etims_send()</field>
+    </record>
+</odoo>

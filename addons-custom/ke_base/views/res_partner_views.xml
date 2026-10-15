@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_partner_form_ke_base" model="ir.ui.view">
+        <field name="name">res.partner.form.ke.base</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='vat']" position="after">
+                <field name="ke_is_kenyan" invisible="1"/>
+                <field name="ke_taxpayer_type" invisible="not ke_is_kenyan or not ke_taxpayer_type"/>
+                <field name="ke_national_id" invisible="not ke_is_kenyan or is_company"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

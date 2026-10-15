@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_ke_etims" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.ke.etims</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="account.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//block[@name='fiscal_localization_setting_container']" position="after">
+                <block title="Kenya eTIMS" id="ke_etims_settings">
+                    <setting id="ke_etims_enabled" company_dependent="1"
+                             string="KRA eTIMS"
+                             help="Transmit customer invoices, credit notes and POS receipts to KRA eTIMS.">
+                        <field name="ke_etims_enabled"/>
+                        <div class="content-group mt16" invisible="not ke_etims_enabled">
+                            <div class="row">
+                                <label for="ke_etims_connector" class="col-lg-4 o_light_label"/>
+                                <field name="ke_etims_connector" class="col-lg-8"/>
+                            </div>
+                            <div class="row">
+                                <label for="ke_etims_environment" class="col-lg-4 o_light_label"/>
+                                <field name="ke_etims_environment" class="col-lg-8"/>
+                            </div>
+                            <div class="row">
+                                <label for="ke_etims_branch_code" class="col-lg-4 o_light_label"/>
+                                <field name="ke_etims_branch_code" class="col-lg-8" placeholder="00"/>
+                            </div>
+                            <div class="row">
+                                <label for="ke_etims_device_serial" class="col-lg-4 o_light_label"/>
+                                <field name="ke_etims_device_serial" class="col-lg-8"/>
+                            </div>
+                            <div class="row">
+                                <label for="ke_etims_scu_id" class="col-lg-4 o_light_label"/>
+                                <field name="ke_etims_scu_id" class="col-lg-8"/>
+                            </div>
+                            <div class="alert alert-warning mt8 mb0" role="alert"
+                                 invisible="ke_etims_connector != 'demo'">
+                                Training mode signs documents locally with numbers prefixed
+                                TRAIN. They are not valid tax invoices. Install a KRA
+                                OSCU/VSCU connector before going live.
+                            </div>
+                            <div class="mt8">
+                                <button name="action_ke_etims_test_connection" type="object"
+                                        string="Test connection" icon="oi-arrow-right" class="btn-link"/>
+                                <button name="action_ke_etims_open_queue" type="object"
+                                        string="Pending transmissions" icon="oi-arrow-right" class="btn-link"/>
+                            </div>
+                        </div>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+</odoo>

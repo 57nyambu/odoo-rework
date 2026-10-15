@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- POS managers follow M-Pesa payments from the backend. Cashiers do not
+         need it: the POS talks to M-Pesa through server methods only. -->
+    <record id="point_of_sale.group_pos_manager" model="res.groups">
+        <field name="implied_ids" eval="[(4, ref('ke_mpesa.group_mpesa_user'))]"/>
+    </record>
+</odoo>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_users_form_ke_uac" model="ir.ui.view">
+        <field name="name">res.users.form.ke.uac</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='access_rights']//field[@name='company_ids']" position="after">
+                <field name="ke_pos_config_ids" widget="many2many_tags" options="{'no_create': True}"
+                       groups="point_of_sale.group_pos_manager"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

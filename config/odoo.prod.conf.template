@@ -1,13 +1,32 @@
 [options]
 addons_path = /mnt/extra-addons/custom,/mnt/extra-addons/oca
+data_dir = /var/lib/odoo
 admin_passwd = ${ODOO_ADMIN_PASSWD}
 db_host = db
 db_port = 5432
 db_user = ${ODOO_DB_USER}
 db_password = ${ODOO_DB_PASSWORD}
-proxy_mode = True
-workers = 4
-max_cron_threads = 2
+
+; ---------------------------------------------------------------------------
+; Multi-tenancy: one PostgreSQL database per tenant (shop / business).
+; The database is picked from the first label of the host name:
+;   https://naivas-demo.pos.example.co.ke  ->  database "naivas-demo"
+; API clients that cannot use a tenant host name may send the
+; X-Odoo-Database header instead (it must still pass this filter).
+; ---------------------------------------------------------------------------
+dbfilter = ${ODOO_DBFILTER}
 list_db = False
+
+proxy_mode = True
+workers = ${ODOO_WORKERS}
+max_cron_threads = 2
+gevent_port = 8072
+
+limit_memory_soft = 2147483648
+limit_memory_hard = 2684354560
+limit_time_cpu = 600
+limit_time_real = 1200
+limit_request = 8192
+
 logfile = /var/log/odoo/odoo.log
 log_level = info

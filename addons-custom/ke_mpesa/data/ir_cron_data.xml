@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="ir_cron_ke_mpesa_settle_pending" model="ir.cron">
+        <field name="name">M-Pesa: settle pending STK requests</field>
+        <field name="model_id" ref="model_ke_mpesa_transaction"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_settle_pending()</field>
+        <field name="interval_number">2</field>
+        <field name="interval_type">minutes</field>
+    </record>
+
+    <record id="ir_cron_ke_mpesa_purge_payloads" model="ir.cron">
+        <field name="name">M-Pesa: purge raw callback payloads (Data Protection Act)</field>
+        <field name="model_id" ref="model_ke_mpesa_transaction"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_purge_raw_payloads()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+    </record>
+
+</odoo>

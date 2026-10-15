@@ -1,1 +1,1 @@
-from . import mpesa_webhook
+from . import main

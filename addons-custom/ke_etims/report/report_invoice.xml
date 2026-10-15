@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="report_invoice_document_ke_etims" inherit_id="account.report_invoice_document">
+        <xpath expr="//div[@id='payment_term']" position="before">
+            <div t-if="o.ke_etims_invoice_number" id="ke_etims_information"
+                 class="row mt-3 mb-3 avoid-page-break-inside">
+                <div class="col-auto" t-if="o.ke_etims_qr_data">
+                    <img t-att-src="o._ke_etims_qr_code_data_uri()" alt="eTIMS QR code"
+                         style="width: 110px; height: 110px;"/>
+                </div>
+                <div class="col">
+                    <strong>KRA eTIMS</strong>
+                    <div>CU Invoice No: <span t-field="o.ke_etims_invoice_number"/></div>
+                    <div t-if="o.ke_etims_scu_id">CU Serial No: <span t-field="o.ke_etims_scu_id"/></div>
+                    <div t-if="o.ke_etims_internal_data">Internal Data: <span t-field="o.ke_etims_internal_data"/></div>
+                    <div t-if="o.ke_etims_signature">Receipt Signature: <span t-field="o.ke_etims_signature"/></div>
+                    <div t-if="o.ke_etims_signed_at">Signed: <span t-field="o.ke_etims_signed_at"/></div>
+                    <div t-if="o.ke_etims_training" class="fw-bold text-danger">
+                        TRAINING MODE - NOT A VALID TAX INVOICE
+                    </div>
+                </div>
+            </div>
+            <div t-elif="o.ke_etims_state in ('to_send', 'error')" id="ke_etims_pending"
+                 class="text-muted mt-3 mb-3">
+                KRA eTIMS: transmission pending.
+            </div>
+        </xpath>
+    </template>
+</odoo>

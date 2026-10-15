@@ -1,3 +1,5 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_mpesa_transaction_pos_user,mpesa.transaction.pos.user,model_mpesa_transaction,point_of_sale.group_pos_user,1,1,1,0
-access_mpesa_transaction_pos_manager,mpesa.transaction.pos.manager,model_mpesa_transaction,point_of_sale.group_pos_manager,1,1,1,1
+access_ke_mpesa_account_user,ke.mpesa.account.user,model_ke_mpesa_account,group_mpesa_user,1,0,0,0
+access_ke_mpesa_account_manager,ke.mpesa.account.manager,model_ke_mpesa_account,group_mpesa_manager,1,1,1,1
+access_ke_mpesa_transaction_user,ke.mpesa.transaction.user,model_ke_mpesa_transaction,group_mpesa_user,1,0,0,0
+access_ke_mpesa_transaction_manager,ke.mpesa.transaction.manager,model_ke_mpesa_transaction,group_mpesa_manager,1,0,0,0

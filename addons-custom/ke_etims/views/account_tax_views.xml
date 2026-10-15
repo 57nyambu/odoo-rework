@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_tax_form_ke_etims" model="ir.ui.view">
+        <field name="name">account.tax.form.ke.etims</field>
+        <field name="model">account.tax</field>
+        <field name="inherit_id" ref="account.view_tax_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='advanced_options']//field[@name='invoice_label']" position="after">
+                <field name="ke_etims_tax_type" invisible="type_tax_use != 'sale'"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+
+    <t t-name="ke_pos.OrderReceipt" t-inherit="point_of_sale.OrderReceipt" t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('before-footer')]" position="before">
+            <div t-if="order.config.ke_lipa_na_mpesa_text"
+                 class="ke-lipa-na-mpesa pos-receipt-center-align text-center fw-bolder pt-3"
+                 t-esc="order.config.ke_lipa_na_mpesa_text"/>
+            <div t-if="keShowEtims" class="ke-etims pos-receipt-center-align text-center pt-3" style="font-size: 75%;">
+                <div class="fw-bolder">KRA eTIMS</div>
+                <t t-if="!keEtimsPending">
+                    <div>CU Invoice No: <t t-esc="order.ke_etims_invoice_number"/></div>
+                    <div t-if="order.ke_etims_scu_id">CU Serial No: <t t-esc="order.ke_etims_scu_id"/></div>
+                    <div t-if="order.ke_etims_internal_data" class="text-break">
+                        Internal Data: <t t-esc="order.ke_etims_internal_data"/>
+                    </div>
+                    <div t-if="order.ke_etims_signature" class="text-break">
+                        Receipt Signature: <t t-esc="order.ke_etims_signature"/>
+                    </div>
+                    <div t-if="order.ke_etims_signed_at">
+                        Signed: <t t-esc="order.formatDateOrTime('ke_etims_signed_at')"/>
+                    </div>
+                    <img t-if="keEtimsQrCode" t-att-src="keEtimsQrCode" class="ke-etims-qr mt-2" alt="eTIMS QR code"/>
+                    <div t-if="order.ke_etims_training" class="fw-bolder pt-1">
+                        TRAINING MODE - NOT A VALID TAX INVOICE
+                    </div>
+                </t>
+                <div t-else="">Transmission to KRA pending</div>
+            </div>
+        </xpath>
+    </t>
+
+    <t t-name="ke_pos.ReceiptHeader" t-inherit="point_of_sale.ReceiptHeader" t-inherit-mode="extension">
+        <xpath expr="//div[@t-if='order.partner_id.vat']" position="replace">
+            <div t-if="order.partner_id.vat">
+                <t t-esc="order.company.country_id?.vat_label or 'Tax ID'"/>:
+                <span t-esc="order.partner_id.vat"/>
+            </div>
+        </xpath>
+    </t>
+
+</templates>

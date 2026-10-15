@@ -1,18 +1,19 @@
 {
-    "name": "Kenya M-Pesa Payments",
-    "summary": "M-Pesa STK Push payment method for POS, via Safaricom's Daraja API.",
-    "version": "19.0.1.0.0",
+    "name": "Kenya M-Pesa (Daraja)",
+    "summary": "M-Pesa STK push, till/paybill (C2B) payments, callbacks and "
+    "reconciliation helpers via Safaricom Daraja. Used by POS and e-commerce.",
+    "version": "19.0.2.0.0",
     "category": "Kenya Localization",
     "author": "Tom Nyambu",
     "license": "LGPL-3",
-    "depends": ["ke_base", "point_of_sale", "account"],
+    "depends": ["ke_base", "account"],
+    "external_dependencies": {"python": ["requests"]},
     "data": [
+        "security/ke_mpesa_security.xml",
         "security/ir.model.access.csv",
+        "data/ir_cron_data.xml",
         "views/mpesa_transaction_views.xml",
+        "views/mpesa_account_views.xml",
     ],
-    "assets": {
-        "point_of_sale._assets_pos": [
-            "ke_mpesa/static/src/js/payment_mpesa.js",
-        ],
-    },
+    "installable": True,
 }

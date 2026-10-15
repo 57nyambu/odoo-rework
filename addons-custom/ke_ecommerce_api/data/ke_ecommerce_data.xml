@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- API scopes -->
+    <record id="scope_catalog_read" model="ke.ecommerce.api.scope">
+        <field name="code">catalog:read</field>
+        <field name="name">Read products, categories and pickup branches</field>
+    </record>
+    <record id="scope_stock_read" model="ke.ecommerce.api.scope">
+        <field name="code">stock:read</field>
+        <field name="name">Read stock levels</field>
+    </record>
+    <record id="scope_customers_read" model="ke.ecommerce.api.scope">
+        <field name="code">customers:read</field>
+        <field name="name">Read customers</field>
+    </record>
+    <record id="scope_customers_write" model="ke.ecommerce.api.scope">
+        <field name="code">customers:write</field>
+        <field name="name">Create and update customers</field>
+    </record>
+    <record id="scope_orders_read" model="ke.ecommerce.api.scope">
+        <field name="code">orders:read</field>
+        <field name="name">Read orders, deliveries and invoices</field>
+    </record>
+    <record id="scope_orders_write" model="ke.ecommerce.api.scope">
+        <field name="code">orders:write</field>
+        <field name="name">Create and cancel orders</field>
+    </record>
+    <record id="scope_payments_write" model="ke.ecommerce.api.scope">
+        <field name="code">payments:write</field>
+        <field name="name">Record payments and request M-Pesa STK pushes</field>
+    </record>
+    <record id="scope_webhooks_read" model="ke.ecommerce.api.scope">
+        <field name="code">webhooks:read</field>
+        <field name="name">Read webhook deliveries</field>
+    </record>
+    <record id="scope_webhooks_write" model="ke.ecommerce.api.scope">
+        <field name="code">webhooks:write</field>
+        <field name="name">Test and redeliver webhooks</field>
+    </record>
+
+    <!-- Webhook topics -->
+    <record id="topic_order_created" model="ke.ecommerce.webhook.topic">
+        <field name="code">order.created</field>
+        <field name="name">Order received from the platform</field>
+    </record>
+    <record id="topic_order_confirmed" model="ke.ecommerce.webhook.topic">
+        <field name="code">order.confirmed</field>
+        <field name="name">Order confirmed, stock reserved</field>
+    </record>
+    <record id="topic_order_paid" model="ke.ecommerce.webhook.topic">
+        <field name="code">order.paid</field>
+        <field name="name">Order fully paid</field>
+    </record>
+    <record id="topic_order_fulfilled" model="ke.ecommerce.webhook.topic">
+        <field name="code">order.fulfilled</field>
+        <field name="name">Goods delivered / collected</field>
+    </record>
+    <record id="topic_order_cancelled" model="ke.ecommerce.webhook.topic">
+        <field name="code">order.cancelled</field>
+        <field name="name">Order cancelled</field>
+    </record>
+    <record id="topic_order_invoiced" model="ke.ecommerce.webhook.topic">
+        <field name="code">order.invoiced</field>
+        <field name="name">Invoice or credit note posted</field>
+    </record>
+    <record id="topic_invoice_etims_signed" model="ke.ecommerce.webhook.topic">
+        <field name="code">invoice.etims_signed</field>
+        <field name="name">Invoice signed by KRA eTIMS</field>
+    </record>
+    <record id="topic_payment_received" model="ke.ecommerce.webhook.topic">
+        <field name="code">payment.received</field>
+        <field name="name">Payment recorded</field>
+    </record>
+    <record id="topic_payment_failed" model="ke.ecommerce.webhook.topic">
+        <field name="code">payment.failed</field>
+        <field name="name">M-Pesa STK push failed or cancelled</field>
+    </record>
+    <record id="topic_stock_updated" model="ke.ecommerce.webhook.topic">
+        <field name="code">stock.updated</field>
+        <field name="name">Available stock changed</field>
+    </record>
+    <record id="topic_product_updated" model="ke.ecommerce.webhook.topic">
+        <field name="code">product.updated</field>
+        <field name="name">Product details or price changed</field>
+    </record>
+
+    <data noupdate="1">
+        <record id="ir_cron_ke_ecommerce_webhooks" model="ir.cron">
+            <field name="name">E-commerce: deliver webhooks</field>
+            <field name="model_id" ref="model_ke_ecommerce_webhook_event"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_dispatch()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">minutes</field>
+        </record>
+        <record id="ir_cron_ke_ecommerce_stock_sync" model="ir.cron">
+            <field name="name">E-commerce: notify stock changes</field>
+            <field name="model_id" ref="model_ke_ecommerce_channel"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_stock_sync()</field>
+            <field name="interval_number">5</field>
+            <field name="interval_type">minutes</field>
+        </record>
+        <record id="ir_cron_ke_ecommerce_purge" model="ir.cron">
+            <field name="name">E-commerce: purge old API logs and delivered webhooks</field>
+            <field name="model_id" ref="model_ke_ecommerce_request_log"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_purge(); env['ke.ecommerce.webhook.event']._cron_purge()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+        </record>
+    </data>
+</odoo>

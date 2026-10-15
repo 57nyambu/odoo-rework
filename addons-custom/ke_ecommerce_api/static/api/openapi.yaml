@@ -1,0 +1,869 @@
+openapi: 3.1.0
+info:
+  title: Odoo Kenya - E-commerce Exchange API
+  version: "1.0"
+  summary: Sync an online shop with Odoo (catalog, branch stock, orders, M-Pesa and card payments, deliveries, KRA eTIMS invoices).
+  description: |
+    Server-to-server REST API exposed by the `ke_ecommerce_api` Odoo module.
+
+    * **Tenancy**: every tenant (business) has its own host, e.g. `https://duka.pos.example.co.ke`.
+      The host selects the tenant database. Clients that must use a shared host send the
+      `X-Odoo-Database` header instead.
+    * **Authentication**: `Authorization: Bearer <api key>`. Keys belong to a *channel* (one online shop)
+      and carry scopes. Never ship a key to a browser or mobile app.
+    * **Money**: amounts in the channel currency (KES), decimal numbers. Kenyan prices are VAT inclusive
+      unless `prices_include_tax` is `false`.
+    * **Time**: ISO 8601. Responses are UTC (`Z`); naive inputs are read as East Africa Time (UTC+3).
+    * **Idempotency**: orders are unique per `external_id`, payments per `reference`. Re-sending the same
+      request returns the existing record with HTTP 200 and `"replayed": true`.
+    * **Errors**: `{"error": {"code", "message", "details", "request_id"}}` - see the Error schema.
+
+    Full guides: `docs/ECOMMERCE_API.md` and `docs/ECOMMERCE_INTEGRATION_GUIDE.md`.
+  license:
+    name: LGPL-3.0
+servers:
+  - url: https://{tenant}.pos.example.co.ke/api/ke/v1
+    variables:
+      tenant:
+        default: demo
+security:
+  - bearerAuth: []
+tags:
+  - name: General
+  - name: Catalog
+  - name: Stock
+  - name: Customers
+  - name: Orders
+  - name: Payments
+  - name: Webhooks
+
+paths:
+  /ping:
+    get:
+      tags: [General]
+      summary: Check credentials and tenant
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string, example: ok}
+                  api_version: {type: string, example: "1.0"}
+                  database: {type: string, example: duka}
+                  server_time: {type: string, format: date-time}
+                  channel:
+                    type: object
+                    properties:
+                      code: {type: string, example: duka-online}
+                      name: {type: string}
+                  company:
+                    type: object
+                    properties:
+                      name: {type: string, example: Duka Bora Ltd}
+                      kra_pin: {type: string, example: P051234567X}
+                      currency: {type: string, example: KES}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /counties:
+    get:
+      tags: [General]
+      summary: The 47 Kenyan counties (codes accepted in addresses)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        code: {type: string, example: KE-30}
+                        name: {type: string, example: Nairobi City}
+
+  /categories:
+    get:
+      tags: [Catalog]
+      summary: Product categories
+      description: "Scope: `catalog:read`"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: {type: integer}
+                        name: {type: string}
+                        full_name: {type: string, example: All / Beverages}
+                        parent_id: {type: [integer, "null"]}
+
+  /pickup-locations:
+    get:
+      tags: [Catalog]
+      summary: Branches offering click & collect
+      description: "Scope: `catalog:read`"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: "#/components/schemas/Location"}
+
+  /products:
+    get:
+      tags: [Catalog]
+      summary: Published products with price, VAT and availability
+      description: "Scope: `catalog:read`. Use `updated_since` for incremental sync."
+      parameters:
+        - {$ref: "#/components/parameters/Page"}
+        - {$ref: "#/components/parameters/PageSize"}
+        - name: updated_since
+          in: query
+          schema: {type: string, format: date-time}
+        - name: sku
+          in: query
+          description: Comma separated SKUs (internal references)
+          schema: {type: string}
+        - name: barcode
+          in: query
+          schema: {type: string}
+        - name: category_id
+          in: query
+          schema: {type: integer}
+        - name: q
+          in: query
+          description: Search in name and SKU
+          schema: {type: string}
+        - name: include_archived
+          in: query
+          description: Also return archived products (to unpublish them online)
+          schema: {type: boolean}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: "#/components/schemas/Product"}
+                  meta: {$ref: "#/components/schemas/PageMeta"}
+
+  /products/{product_id}:
+    get:
+      tags: [Catalog]
+      summary: One product
+      description: "Scope: `catalog:read`"
+      parameters:
+        - name: product_id
+          in: path
+          required: true
+          schema: {type: integer}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/Product"}
+        "404": {$ref: "#/components/responses/Error"}
+
+  /products/{product_id}/image:
+    get:
+      tags: [Catalog]
+      summary: Product image (binary)
+      description: "Scope: `catalog:read`. Cache it on your side; `ETag`/`Cache-Control` are provided."
+      parameters:
+        - name: product_id
+          in: path
+          required: true
+          schema: {type: integer}
+        - name: size
+          in: query
+          schema: {type: integer, enum: [128, 256, 512, 1024], default: 1024}
+      responses:
+        "200":
+          description: Image
+          content:
+            image/*: {}
+        "404": {$ref: "#/components/responses/Error"}
+
+  /stock:
+    get:
+      tags: [Stock]
+      summary: Available quantities
+      description: |
+        Scope: `stock:read`. Available = on hand - reserved - channel safety buffer, in the channel
+        warehouse (or `location_id`). `available_quantity` is `null` for services / untracked goods.
+      parameters:
+        - {$ref: "#/components/parameters/Page"}
+        - {$ref: "#/components/parameters/PageSize"}
+        - name: skus
+          in: query
+          schema: {type: string}
+        - name: product_ids
+          in: query
+          schema: {type: string}
+        - name: location_id
+          in: query
+          description: Pickup branch id or code
+          schema: {type: string}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: "#/components/schemas/StockLevel"}
+                  meta:
+                    allOf:
+                      - {$ref: "#/components/schemas/PageMeta"}
+                      - type: object
+                        properties:
+                          location: {$ref: "#/components/schemas/Location"}
+
+  /customers:
+    post:
+      tags: [Customers]
+      summary: Create or update a customer
+      description: |
+        Scope: `customers:write`. Matched by `external_id` (per channel), then e-mail, then phone.
+        Send `kra_pin` for business customers who need a VAT invoice in their PIN.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CustomerInput"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/Customer"}
+        "422": {$ref: "#/components/responses/Error"}
+
+  /customers/{customer_id}:
+    get:
+      tags: [Customers]
+      summary: One customer
+      description: "Scope: `customers:read`"
+      parameters:
+        - name: customer_id
+          in: path
+          required: true
+          schema: {type: integer}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/Customer"}
+
+  /orders:
+    post:
+      tags: [Orders]
+      summary: Push an online order
+      description: |
+        Scope: `orders:write`. Idempotent on `external_id`. With *auto confirm* (default) the order is
+        confirmed and stock reserved immediately; insufficient stock returns 409 unless the channel
+        allows backorders.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/OrderInput"}
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/OrderResponse"}
+        "200":
+          description: Already imported (replay)
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/OrderResponse"}
+        "409": {$ref: "#/components/responses/Error"}
+        "422": {$ref: "#/components/responses/Error"}
+    get:
+      tags: [Orders]
+      summary: List orders of this channel
+      description: "Scope: `orders:read`"
+      parameters:
+        - {$ref: "#/components/parameters/Page"}
+        - {$ref: "#/components/parameters/PageSize"}
+        - name: updated_since
+          in: query
+          schema: {type: string, format: date-time}
+        - name: status
+          in: query
+          schema: {type: string, enum: [pending, confirmed, cancelled]}
+        - name: payment_status
+          in: query
+          schema: {type: string, enum: [unpaid, partial, paid]}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: "#/components/schemas/Order"}
+                  meta: {$ref: "#/components/schemas/PageMeta"}
+
+  /orders/{external_id}:
+    get:
+      tags: [Orders]
+      summary: Order status, shipments, invoices (with eTIMS) and payments
+      description: "Scope: `orders:read`"
+      parameters:
+        - {$ref: "#/components/parameters/ExternalId"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/Order"}
+        "404": {$ref: "#/components/responses/Error"}
+
+  /orders/{external_id}/cancel:
+    post:
+      tags: [Orders]
+      summary: Cancel an order not yet delivered
+      description: |
+        Scope: `orders:write`. Releases reserved stock. A posted invoice is reversed with a credit note
+        (also transmitted to eTIMS); refunding the customer's money stays with the platform.
+      parameters:
+        - {$ref: "#/components/parameters/ExternalId"}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: {type: string}
+      responses:
+        "200":
+          description: Cancelled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/Order"}
+        "409": {$ref: "#/components/responses/Error"}
+
+  /orders/{external_id}/payments:
+    post:
+      tags: [Payments]
+      summary: Record a payment received online
+      description: |
+        Scope: `payments:write`. Idempotent on `reference`. When the order becomes fully paid and the
+        channel has *auto invoice*, Odoo posts the invoice, reconciles the payments and queues the
+        invoice for KRA eTIMS.
+      parameters:
+        - {$ref: "#/components/parameters/ExternalId"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/PaymentInput"}
+      responses:
+        "201":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      payment: {$ref: "#/components/schemas/Payment"}
+                      order: {$ref: "#/components/schemas/Order"}
+        "200":
+          description: Already recorded (replay)
+        "409": {$ref: "#/components/responses/Error"}
+        "422": {$ref: "#/components/responses/Error"}
+
+  /orders/{external_id}/mpesa-stk-push:
+    post:
+      tags: [Payments]
+      summary: Ask Odoo to send an M-Pesa STK push to the customer
+      description: |
+        Scope: `payments:write`. Uses the channel's M-Pesa account (till or paybill). Returns 202 with a
+        pending request; Safaricom's answer arrives asynchronously: Odoo records the payment
+        (`payment.received` webhook) or reports a failure (`payment.failed` webhook). You can also poll
+        `GET /mpesa/stk-requests/{id}`.
+      parameters:
+        - {$ref: "#/components/parameters/ExternalId"}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone: {type: string, example: "0712345678", description: Defaults to the customer's phone}
+                amount: {type: number, description: Whole shillings. Defaults to the amount due}
+      responses:
+        "202":
+          description: Prompt sent to the phone
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/StkRequest"}
+        "422": {$ref: "#/components/responses/Error"}
+
+  /mpesa/stk-requests/{id}:
+    get:
+      tags: [Payments]
+      summary: Status of an STK push requested through the API
+      description: "Scope: `orders:read`"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: integer}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/StkRequest"}
+
+  /webhooks/events:
+    get:
+      tags: [Webhooks]
+      summary: Recent webhook deliveries
+      description: "Scope: `webhooks:read`"
+      parameters:
+        - {$ref: "#/components/parameters/Page"}
+        - {$ref: "#/components/parameters/PageSize"}
+        - name: state
+          in: query
+          schema: {type: string, enum: [pending, sent, failed, cancelled]}
+      responses:
+        "200":
+          description: OK
+
+  /webhooks/test:
+    post:
+      tags: [Webhooks]
+      summary: Queue a `ping` event to the channel webhook URL
+      description: "Scope: `webhooks:write`"
+      responses:
+        "202":
+          description: Queued
+
+  /webhooks/events/{event_id}/redeliver:
+    post:
+      tags: [Webhooks]
+      summary: Send an event again
+      description: "Scope: `webhooks:write`"
+      parameters:
+        - name: event_id
+          in: path
+          required: true
+          schema: {type: string, example: evt_3f2b...}
+      responses:
+        "202":
+          description: Queued
+
+webhooks:
+  event:
+    post:
+      summary: Event notification sent by Odoo to the channel webhook URL
+      description: |
+        Headers: `X-KE-Event` (type), `X-KE-Event-Id`, `X-KE-Delivery-Attempt`, and
+        `X-KE-Signature: t=<unix time>,v1=<hex HMAC-SHA256(secret, "<t>.<raw body>")>`.
+        Answer 2xx within 15 seconds; anything else is retried after 1, 5, 15, 60, 180, 360, 720
+        and 1440 minutes. Deduplicate on the event id.
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/WebhookEvent"}
+      responses:
+        "200":
+          description: Accepted
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: "ke_<prefix>_<secret>"
+
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema: {type: integer, minimum: 1, default: 1}
+    PageSize:
+      name: page_size
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 200, default: 50}
+    ExternalId:
+      name: external_id
+      in: path
+      required: true
+      description: The order id in your platform (as sent in `external_id`)
+      schema: {type: string, example: WC-10023}
+
+  responses:
+    Unauthorized:
+      description: Missing, invalid, revoked or expired key
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              enum: [unauthorized, insufficient_scope, rate_limited, invalid_json, invalid_parameter,
+                     validation_error, not_found, unknown_product, insufficient_stock, invalid_county,
+                     invalid_kra_pin, invalid_phone, currency_mismatch, invalid_pickup_location,
+                     order_cancelled, already_fulfilled, no_payment_journal, invalid_mpesa_code,
+                     mpesa_payment_not_found, mpesa_payment_already_used, mpesa_amount_mismatch,
+                     mpesa_not_configured, mpesa_request_failed, nothing_to_pay, forbidden, server_error]
+            message: {type: string}
+            details: {}
+            request_id: {type: string}
+
+    PageMeta:
+      type: object
+      properties:
+        page: {type: integer}
+        page_size: {type: integer}
+        total: {type: integer}
+        has_more: {type: boolean}
+
+    Location:
+      type: object
+      properties:
+        id: {type: integer}
+        code: {type: string, example: WSTL}
+        name: {type: string, example: Westlands branch}
+        street: {type: [string, "null"]}
+        city: {type: [string, "null"]}
+        county: {type: [string, "null"]}
+        county_code: {type: [string, "null"], example: KE-30}
+        phone: {type: [string, "null"]}
+
+    Product:
+      type: object
+      properties:
+        id: {type: integer}
+        template_id: {type: integer}
+        sku: {type: [string, "null"], example: SODA-500}
+        barcode: {type: [string, "null"]}
+        name: {type: string}
+        description: {type: [string, "null"]}
+        category: {type: object, properties: {id: {type: integer}, name: {type: string}}}
+        type: {type: string, enum: [goods, service]}
+        uom: {type: string, example: Units}
+        variant_attributes:
+          type: array
+          items: {type: object, properties: {attribute: {type: string}, value: {type: string}}}
+        active: {type: boolean}
+        published: {type: boolean, description: "false only in product.updated events of products removed from the channel"}
+        currency: {type: string, example: KES}
+        price: {type: number, example: 116.0, description: Unit price including VAT}
+        price_excluding_tax: {type: number, example: 100.0}
+        tax_amount: {type: number, example: 16.0}
+        taxes:
+          type: array
+          items: {type: object, properties: {name: {type: string}, rate: {type: number}, included_in_price: {type: boolean}}}
+        etims_tax_type: {type: string, enum: [A, B, C, D, E], description: "A exempt, B 16%, C zero rated, D non-VAT, E 8%"}
+        track_stock: {type: boolean}
+        available_quantity: {type: [number, "null"]}
+        weight: {type: [number, "null"]}
+        image_url: {type: [string, "null"]}
+        updated_at: {type: string, format: date-time}
+
+    StockLevel:
+      type: object
+      properties:
+        product_id: {type: integer}
+        sku: {type: [string, "null"]}
+        track_stock: {type: boolean}
+        available_quantity: {type: [number, "null"]}
+        in_stock: {type: boolean}
+
+    CustomerInput:
+      type: object
+      required: [name]
+      properties:
+        external_id: {type: string, example: cust-77}
+        name: {type: string, example: Achieng Otieno}
+        company_name: {type: string, description: Bill a business instead of the person}
+        email: {type: string, format: email}
+        phone: {type: string, example: "0712 345 678"}
+        kra_pin: {type: string, example: A012345678Z}
+
+    Customer:
+      type: object
+      properties:
+        id: {type: integer}
+        external_id: {type: [string, "null"]}
+        name: {type: string}
+        email: {type: [string, "null"]}
+        phone: {type: [string, "null"], example: "+254712345678"}
+        kra_pin: {type: [string, "null"]}
+        is_company: {type: boolean}
+
+    Address:
+      type: object
+      properties:
+        name: {type: string}
+        phone: {type: string}
+        street: {type: string, example: "Ngong Road, Prestige Plaza"}
+        street2: {type: string}
+        city: {type: string, example: Nairobi}
+        county: {type: string, description: "Name or code: 'Nairobi', 'KE-30' or '30'"}
+        postal_code: {type: string, example: "00100"}
+        country: {type: string, default: KE}
+
+    OrderLineInput:
+      type: object
+      required: [quantity]
+      description: Identify the product with one of product_id, sku or barcode.
+      properties:
+        product_id: {type: integer}
+        sku: {type: string}
+        barcode: {type: string}
+        quantity: {type: number, exclusiveMinimum: 0}
+        unit_price: {type: number, description: Price the customer saw (checked or used depending on the channel price source)}
+        discount_percent: {type: number, minimum: 0, maximum: 100}
+        name: {type: string, description: Optional line description}
+
+    OrderInput:
+      type: object
+      required: [external_id, customer, lines]
+      properties:
+        external_id: {type: string, maxLength: 64, example: WC-10023}
+        currency: {type: string, example: KES}
+        placed_at: {type: string, format: date-time}
+        prices_include_tax: {type: boolean, default: true}
+        customer: {$ref: "#/components/schemas/CustomerInput"}
+        shipping_address: {$ref: "#/components/schemas/Address"}
+        fulfilment:
+          type: object
+          properties:
+            type: {type: string, enum: [delivery, pickup], default: delivery}
+            pickup_location_id: {type: string, description: Branch id or code (pickup only)}
+            shipping_fee: {type: number, example: 200}
+            carrier: {type: string, example: Sendy}
+            instructions: {type: string}
+        lines:
+          type: array
+          minItems: 1
+          items: {$ref: "#/components/schemas/OrderLineInput"}
+        note: {type: string}
+        payment: {$ref: "#/components/schemas/PaymentInput"}
+
+    PaymentInput:
+      type: object
+      required: [method, reference, amount]
+      properties:
+        method: {type: string, enum: [mpesa, airtel_money, card, bank_transfer, cash_on_delivery, other]}
+        reference: {type: string, description: "M-Pesa code (e.g. SJK3ABCD9Z) or the payment provider reference"}
+        amount: {type: number, exclusiveMinimum: 0}
+        paid_at: {type: string, format: date-time}
+        phone: {type: string}
+
+    Payment:
+      type: object
+      properties:
+        id: {type: integer}
+        method: {type: string}
+        reference: {type: string}
+        amount: {type: number}
+        currency: {type: string}
+        date: {type: string, format: date}
+        state: {type: string}
+
+    Invoice:
+      type: object
+      properties:
+        id: {type: integer}
+        number: {type: string, example: INV/2026/00042}
+        type: {type: string, enum: [invoice, credit_note]}
+        state: {type: string}
+        date: {type: [string, "null"], format: date}
+        amount_untaxed: {type: number}
+        amount_tax: {type: number}
+        amount_total: {type: number}
+        amount_residual: {type: number}
+        payment_state: {type: string}
+        portal_url: {type: [string, "null"], description: Link the customer can open to download the invoice}
+        etims:
+          type: [object, "null"]
+          properties:
+            status: {type: string, enum: [not_applicable, to_send, sent, error]}
+            cu_invoice_number: {type: [string, "null"], example: KRACU0100000001/152}
+            scu_id: {type: [string, "null"]}
+            receipt_number: {type: [integer, "null"]}
+            signed_at: {type: [string, "null"], format: date-time}
+            qr_data: {type: [string, "null"], description: Content of the KRA QR code}
+            training: {type: boolean, description: Signed in training mode - not a valid tax invoice}
+
+    Order:
+      type: object
+      properties:
+        id: {type: integer}
+        name: {type: string, example: S00042}
+        external_id: {type: string}
+        status: {type: string, enum: [pending, confirmed, ready, partially_fulfilled, fulfilled, cancelled]}
+        payment_status: {type: string, enum: [unpaid, partial, paid]}
+        currency: {type: string}
+        amount_untaxed: {type: number}
+        amount_tax: {type: number}
+        amount_total: {type: number}
+        amount_paid: {type: number}
+        amount_due: {type: number}
+        tax_breakdown:
+          type: array
+          items: {type: object, properties: {etims_tax_type: {type: string}, base: {type: number}, tax: {type: number}}}
+        customer: {$ref: "#/components/schemas/Customer"}
+        shipping_address:
+          oneOf:
+            - {$ref: "#/components/schemas/Address"}
+            - {type: "null"}
+        fulfilment:
+          type: object
+          properties:
+            type: {type: string}
+            carrier: {type: [string, "null"]}
+            instructions: {type: [string, "null"]}
+            pickup_location:
+              oneOf:
+                - {$ref: "#/components/schemas/Location"}
+                - {type: "null"}
+            shipments:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: {type: integer}
+                  name: {type: string, example: WH/OUT/00012}
+                  state: {type: string, enum: [draft, waiting, confirmed, assigned, done]}
+                  scheduled_date: {type: [string, "null"], format: date-time}
+                  date_done: {type: [string, "null"], format: date-time}
+                  tracking_reference: {type: [string, "null"]}
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              id: {type: integer}
+              product_id: {type: integer}
+              sku: {type: [string, "null"]}
+              name: {type: string}
+              quantity: {type: number}
+              quantity_delivered: {type: number}
+              quantity_invoiced: {type: number}
+              unit_price: {type: number}
+              discount_percent: {type: number}
+              subtotal: {type: number}
+              tax: {type: number}
+              total: {type: number}
+              etims_tax_type: {type: string}
+              is_delivery_fee: {type: boolean}
+        invoices:
+          type: array
+          items: {$ref: "#/components/schemas/Invoice"}
+        payments:
+          type: array
+          items: {$ref: "#/components/schemas/Payment"}
+        note: {type: [string, "null"]}
+        placed_at: {type: [string, "null"], format: date-time}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    OrderResponse:
+      type: object
+      properties:
+        data: {$ref: "#/components/schemas/Order"}
+        warnings:
+          type: array
+          items: {type: object, properties: {code: {type: string}, field: {type: string}, message: {type: string}}}
+        replayed: {type: boolean}
+
+    StkRequest:
+      type: object
+      properties:
+        id: {type: integer}
+        status: {type: string, enum: [pending, confirmed, failed, cancelled, expired]}
+        checkout_request_id: {type: string}
+        amount: {type: number}
+        phone: {type: string, example: "0712***678"}
+        receipt_number: {type: [string, "null"]}
+        message: {type: string}
+
+    WebhookEvent:
+      type: object
+      properties:
+        id: {type: string, example: evt_3f2b8c...}
+        type:
+          type: string
+          enum: [ping, order.created, order.confirmed, order.paid, order.fulfilled, order.cancelled,
+                 order.invoiced, invoice.etims_signed, payment.received, payment.failed,
+                 stock.updated, product.updated]
+        created_at: {type: string, format: date-time}
+        api_version: {type: string}
+        channel: {type: string}
+        data: {type: object, description: "Order for order.*, {order, payment} for payment.*, {order, invoice} for invoice.etims_signed, {items: [...]} for stock.updated, Product for product.updated"}

@@ -1,20 +1,17 @@
-// Adapted to match the existing pipeline conventions used for
-// motorgarage/samta/agriconnect/etc: motorgarage-ssh credential
-// authenticating as `tom`, an sv2-host-style deploy host binding,
-// -i "$SSH_KEY" $SSH_OPTS to avoid word-splitting, and a route-agnostic
+// Same conventions as the other pipelines (motorgarage/samta/agriconnect...):
+// motorgarage-ssh credential authenticating as `tom`, sv2-host deploy host
+// binding, -i "$SSH_KEY" $SSH_OPTS to avoid word-splitting, route-agnostic
 // curl -s health check with no -f.
 //
-// Verify the exact credential/variable binding syntax against one of your
-// existing Jenkinsfiles — this mirrors the pattern described, not a copy
-// of a specific working file.
+// Multi-tenant: every tenant database is upgraded (scripts/tenant.sh
+// upgrade-all), and the health check hits one tenant host through nginx.
 
 pipeline {
     agent any
 
     environment {
         APP_DIR = '/home/tom/apps/odoo-kenya'
-        DB_NAME = 'odoo_kenya_prod'
-        CUSTOM_MODULES = 'ke_base,ke_etims,ke_mpesa,ke_pos_ui,ke_cash_purchase,ke_uac,ke_reporting'
+        HEALTH_HOST = 'demo.pos.dima.co.ke'   // any existing tenant sub-domain
     }
 
     stages {
@@ -24,7 +21,19 @@ pipeline {
             }
         }
 
-        stage('Deploy + upgrade + health check') {
+        stage('Static checks') {
+            steps {
+                sh '''
+                    set -e
+                    python3 -m compileall -q addons-custom
+                    for f in $(find addons-custom -name '*.xml'); do
+                        python3 -c "import sys, xml.dom.minidom; xml.dom.minidom.parse(sys.argv[1])" "$f"
+                    done
+                '''
+            }
+        }
+
+        stage('Deploy + upgrade all tenants + health check') {
             steps {
                 withCredentials([
                     sshUserPrivateKey(credentialsId: 'motorgarage-ssh', keyFileVariable: 'SSH_KEY'),
@@ -41,12 +50,13 @@ pipeline {
                             bash scripts/render-config.sh
                             docker compose -f docker-compose.prod.yml pull
                             docker compose -f docker-compose.prod.yml up -d
-                            docker compose -f docker-compose.prod.yml exec -T odoo \
-                                odoo -u $CUSTOM_MODULES -d $DB_NAME --stop-after-init
+                            bash scripts/tenant.sh backup-all
+                            bash scripts/tenant.sh upgrade-all
+                            docker compose -f docker-compose.prod.yml restart odoo
                         "
 
                         STATUS=$(ssh -i "$SSH_KEY" $SSH_OPTS tom@"$DEPLOY_HOST" \
-                            "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8069/web/login")
+                            "curl -s -o /dev/null -w '%{http_code}' --resolve $HEALTH_HOST:443:127.0.0.1 https://$HEALTH_HOST/web/login")
 
                         if [ "$STATUS" != "200" ]; then
                             echo "Health check returned $STATUS, expected 200"

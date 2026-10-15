@@ -1,0 +1,323 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_ke_ecommerce_channel_list" model="ir.ui.view">
+        <field name="name">ke.ecommerce.channel.list</field>
+        <field name="model">ke.ecommerce.channel</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="warehouse_id"/>
+                <field name="pricelist_id"/>
+                <field name="webhook_url" optional="show"/>
+                <field name="order_count" string="Orders"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_ke_ecommerce_channel_form" model="ir.ui.view">
+        <field name="name">ke.ecommerce.channel.form</field>
+        <field name="model">ke.ecommerce.channel</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_new_api_key" type="object" string="New API key" class="btn-primary"/>
+                    <button name="action_send_test_webhook" type="object" string="Send test webhook"
+                            invisible="not webhook_url"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_orders" type="object" class="oe_stat_button" icon="fa-shopping-cart">
+                            <field name="order_count" widget="statinfo" string="Orders"/>
+                        </button>
+                        <button name="action_view_webhook_events" type="object" class="oe_stat_button"
+                                icon="fa-paper-plane" string="Webhooks"/>
+                        <button name="action_view_request_logs" type="object" class="oe_stat_button"
+                                icon="fa-list-alt" string="API logs"/>
+                    </div>
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="e.g. Duka Online (WooCommerce)"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="code" placeholder="duka-online"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="user_id"/>
+                            <field name="active" invisible="1"/>
+                        </group>
+                        <group>
+                            <field name="team_id"/>
+                            <field name="rate_limit_per_minute"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Catalog &amp; stock" name="catalog">
+                            <group>
+                                <group string="Products">
+                                    <field name="publish_all_products"/>
+                                    <field name="pricelist_id"/>
+                                    <field name="price_source" widget="radio"/>
+                                </group>
+                                <group string="Stock">
+                                    <field name="warehouse_id"/>
+                                    <field name="pickup_warehouse_ids" widget="many2many_tags"/>
+                                    <field name="stock_buffer"/>
+                                    <field name="allow_backorder"/>
+                                    <field name="last_stock_sync_at"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Orders &amp; payments" name="orders">
+                            <group>
+                                <group string="Orders">
+                                    <field name="auto_confirm"/>
+                                    <field name="auto_invoice"/>
+                                    <field name="shipping_product_id"/>
+                                </group>
+                                <group string="Payments">
+                                    <field name="payment_journal_id"/>
+                                    <field name="mpesa_journal_id"/>
+                                    <field name="mpesa_account_id"/>
+                                    <field name="mpesa_verification"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Webhooks" name="webhooks">
+                            <group>
+                                <field name="webhook_url" placeholder="https://shop.example.co.ke/odoo/webhooks" widget="url"/>
+                                <field name="webhook_secret" password="True" groups="ke_ecommerce_api.group_ecommerce_manager"/>
+                                <field name="webhook_topic_ids" widget="many2many_tags"/>
+                            </group>
+                            <button name="action_regenerate_webhook_secret" type="object" class="btn-link"
+                                    string="Generate a new secret" icon="oi-arrow-right"
+                                    confirm="The platform will reject webhooks until it uses the new secret. Continue?"/>
+                        </page>
+                        <page string="API keys" name="api_keys">
+                            <field name="api_key_ids" context="{'active_test': False}">
+                                <list create="0" decoration-muted="not active">
+                                    <field name="name"/>
+                                    <field name="key_prefix" string="Key starts with"/>
+                                    <field name="scope_ids" widget="many2many_tags"/>
+                                    <field name="expires_at"/>
+                                    <field name="last_used_at"/>
+                                    <field name="last_used_ip"/>
+                                    <field name="active" widget="boolean_toggle"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_ke_ecommerce_channel" model="ir.actions.act_window">
+        <field name="name">E-commerce channels</field>
+        <field name="res_model">ke.ecommerce.channel</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Connect your online shop</p>
+            <p>A channel represents an online shop exchanging products, stock, orders and payments
+               with Odoo through the REST API. Create one, then generate an API key for the shop.</p>
+        </field>
+    </record>
+
+    <!-- API key wizard -->
+    <record id="view_ke_ecommerce_api_key_wizard_form" model="ir.ui.view">
+        <field name="name">ke.ecommerce.api.key.wizard.form</field>
+        <field name="model">ke.ecommerce.api.key.wizard</field>
+        <field name="arch" type="xml">
+            <form>
+                <group invisible="key">
+                    <field name="channel_id" readonly="1"/>
+                    <field name="name"/>
+                    <field name="scope_ids" widget="many2many_tags"/>
+                    <field name="expires_at"/>
+                </group>
+                <div invisible="not key">
+                    <div class="alert alert-warning" role="alert">
+                        Copy this key now and store it in the shop's server configuration.
+                        It will never be shown again.
+                    </div>
+                    <field name="key" widget="CopyClipboardChar" readonly="1"/>
+                </div>
+                <footer>
+                    <button name="action_generate" type="object" string="Generate" class="btn-primary" invisible="key"/>
+                    <button string="Cancel" special="cancel" class="btn-secondary" invisible="key"/>
+                    <button string="Done" special="cancel" class="btn-primary" invisible="not key"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- Webhook events -->
+    <record id="view_ke_ecommerce_webhook_event_list" model="ir.ui.view">
+        <field name="name">ke.ecommerce.webhook.event.list</field>
+        <field name="model">ke.ecommerce.webhook.event</field>
+        <field name="arch" type="xml">
+            <list create="0" decoration-danger="state == 'failed'" decoration-muted="state == 'cancelled'"
+                  decoration-info="state == 'pending'">
+                <field name="create_date" string="Created"/>
+                <field name="topic"/>
+                <field name="channel_id"/>
+                <field name="uid" optional="hide"/>
+                <field name="attempts"/>
+                <field name="last_status_code" optional="show"/>
+                <field name="next_attempt_at" optional="hide"/>
+                <field name="sent_at" optional="show"/>
+                <field name="state" widget="badge" decoration-success="state == 'sent'"
+                       decoration-danger="state == 'failed'" decoration-info="state == 'pending'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_ke_ecommerce_webhook_event_form" model="ir.ui.view">
+        <field name="name">ke.ecommerce.webhook.event.form</field>
+        <field name="model">ke.ecommerce.webhook.event</field>
+        <field name="arch" type="xml">
+            <form create="0">
+                <header>
+                    <button name="action_redeliver" type="object" string="Redeliver"
+                            invisible="state not in ('failed', 'sent', 'cancelled')"/>
+                    <button name="action_cancel" type="object" string="Cancel"
+                            invisible="state not in ('pending', 'failed')"/>
+                    <field name="state" widget="statusbar" statusbar_visible="pending,sent"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="topic"/>
+                            <field name="uid"/>
+                            <field name="channel_id"/>
+                            <field name="res_model"/>
+                            <field name="res_id"/>
+                        </group>
+                        <group>
+                            <field name="attempts"/>
+                            <field name="next_attempt_at"/>
+                            <field name="sent_at"/>
+                            <field name="last_status_code"/>
+                        </group>
+                    </group>
+                    <group string="Last error" invisible="not last_error">
+                        <field name="last_error" nolabel="1" colspan="2"/>
+                    </group>
+                    <group string="Payload">
+                        <field name="payload" nolabel="1" colspan="2" widget="code" options="{'mode': 'javascript'}"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_ke_ecommerce_webhook_event_search" model="ir.ui.view">
+        <field name="name">ke.ecommerce.webhook.event.search</field>
+        <field name="model">ke.ecommerce.webhook.event</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="topic"/>
+                <field name="uid"/>
+                <field name="channel_id"/>
+                <filter name="pending" string="Pending" domain="[('state', '=', 'pending')]"/>
+                <filter name="failed" string="Failed" domain="[('state', '=', 'failed')]"/>
+                <group>
+                    <filter name="group_topic" string="Topic" context="{'group_by': 'topic'}"/>
+                    <filter name="group_state" string="Status" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_ke_ecommerce_webhook_event" model="ir.actions.act_window">
+        <field name="name">Webhook deliveries</field>
+        <field name="res_model">ke.ecommerce.webhook.event</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- Request logs -->
+    <record id="view_ke_ecommerce_request_log_list" model="ir.ui.view">
+        <field name="name">ke.ecommerce.request.log.list</field>
+        <field name="model">ke.ecommerce.request.log</field>
+        <field name="arch" type="xml">
+            <list create="0" edit="0" decoration-danger="status &gt;= 500" decoration-warning="status &gt;= 400 and status &lt; 500">
+                <field name="create_date" string="Time"/>
+                <field name="method"/>
+                <field name="path"/>
+                <field name="status"/>
+                <field name="error_code" optional="show"/>
+                <field name="duration_ms" string="ms"/>
+                <field name="channel_id" optional="show"/>
+                <field name="api_key_id" optional="hide"/>
+                <field name="ip_address" optional="hide"/>
+                <field name="request_id" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_ke_ecommerce_request_log_form" model="ir.ui.view">
+        <field name="name">ke.ecommerce.request.log.form</field>
+        <field name="model">ke.ecommerce.request.log</field>
+        <field name="arch" type="xml">
+            <form create="0" edit="0">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="method"/>
+                            <field name="path"/>
+                            <field name="status"/>
+                            <field name="error_code"/>
+                        </group>
+                        <group>
+                            <field name="request_id"/>
+                            <field name="channel_id"/>
+                            <field name="api_key_id"/>
+                            <field name="ip_address"/>
+                            <field name="duration_ms"/>
+                        </group>
+                    </group>
+                    <group string="Request body" invisible="not request_body">
+                        <field name="request_body" nolabel="1" colspan="2" widget="code" options="{'mode': 'javascript'}"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_ke_ecommerce_request_log_search" model="ir.ui.view">
+        <field name="name">ke.ecommerce.request.log.search</field>
+        <field name="model">ke.ecommerce.request.log</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="path"/>
+                <field name="request_id"/>
+                <field name="error_code"/>
+                <filter name="errors" string="Errors" domain="[('status', '&gt;=', 400)]"/>
+                <filter name="server_errors" string="Server errors" domain="[('status', '&gt;=', 500)]"/>
+                <group>
+                    <filter name="group_status" string="Status" context="{'group_by': 'status'}"/>
+                    <filter name="group_path" string="Endpoint" context="{'group_by': 'path'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_ke_ecommerce_request_log" model="ir.actions.act_window">
+        <field name="name">API request logs</field>
+        <field name="res_model">ke.ecommerce.request.log</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- Menus -->
+    <menuitem id="menu_ke_ecommerce_root" name="E-commerce integration"
+              parent="sale.menu_sale_config" sequence="90"
+              groups="ke_ecommerce_api.group_ecommerce_manager"/>
+    <menuitem id="menu_ke_ecommerce_channels" name="Channels" parent="menu_ke_ecommerce_root"
+              action="action_ke_ecommerce_channel" sequence="10"/>
+    <menuitem id="menu_ke_ecommerce_webhooks" name="Webhook deliveries" parent="menu_ke_ecommerce_root"
+              action="action_ke_ecommerce_webhook_event" sequence="20"/>
+    <menuitem id="menu_ke_ecommerce_logs" name="API request logs" parent="menu_ke_ecommerce_root"
+              action="action_ke_ecommerce_request_log" sequence="30"/>
+</odoo>

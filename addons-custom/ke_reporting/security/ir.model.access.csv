@@ -1,2 +1,4 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_ke_daily_sales_report,ke.daily.sales.report,model_ke_daily_sales_report,point_of_sale.group_pos_manager,1,0,0,0
+access_ke_vat_sales_report,ke.vat.sales.report,model_ke_vat_sales_report,point_of_sale.group_pos_manager,1,0,0,0
+access_ke_vat_sales_report_accountant,ke.vat.sales.report.accountant,model_ke_vat_sales_report,account.group_account_readonly,1,0,0,0

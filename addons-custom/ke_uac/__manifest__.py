@@ -1,7 +1,8 @@
 {
     "name": "Kenya UAC Extensions",
-    "summary": "Custom security groups and record rules layered on top of standard Odoo access control.",
-    "version": "19.0.1.0.0",
+    "summary": "Retail roles (cashier, branch manager) and per-cashier shop restriction "
+    "layered on standard Odoo access control.",
+    "version": "19.0.2.0.0",
     "category": "Kenya Localization",
     "author": "Tom Nyambu",
     "license": "LGPL-3",
@@ -9,5 +10,7 @@
     "data": [
         "security/security_groups.xml",
         "security/record_rules.xml",
+        "views/res_users_views.xml",
     ],
+    "installable": True,
 }

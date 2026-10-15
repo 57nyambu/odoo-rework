@@ -1,28 +1,130 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="view_mpesa_transaction_list" model="ir.ui.view">
-        <field name="name">mpesa.transaction.list</field>
-        <field name="model">mpesa.transaction</field>
+    <record id="view_ke_mpesa_transaction_list" model="ir.ui.view">
+        <field name="name">ke.mpesa.transaction.list</field>
+        <field name="model">ke.mpesa.transaction</field>
         <field name="arch" type="xml">
-            <list>
-                <field name="create_date"/>
-                <field name="phone"/>
-                <field name="amount"/>
-                <field name="state"/>
-                <field name="mpesa_receipt_number"/>
+            <list create="0" edit="0" delete="0"
+                  decoration-success="state == 'confirmed'"
+                  decoration-muted="state in ('cancelled', 'expired')"
+                  decoration-danger="state == 'failed'"
+                  decoration-info="state == 'pending'">
+                <field name="create_date" string="Date"/>
+                <field name="receipt_number"/>
+                <field name="kind" optional="show"/>
+                <field name="phone_masked"/>
+                <field name="payer_name" optional="hide"/>
+                <field name="reference" optional="show"/>
+                <field name="account_id" optional="show"/>
+                <field name="company_id" groups="base.group_multi_company" optional="hide"/>
+                <field name="amount" sum="Total"/>
+                <field name="currency_id" column_invisible="True"/>
+                <field name="claimed" optional="show"/>
+                <field name="claim_reference" optional="hide"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'confirmed'"
+                       decoration-info="state == 'pending'"
+                       decoration-danger="state == 'failed'"/>
             </list>
         </field>
     </record>
 
-    <record id="action_mpesa_transaction" model="ir.actions.act_window">
-        <field name="name">M-Pesa transactions</field>
-        <field name="res_model">mpesa.transaction</field>
-        <field name="view_mode">list,form</field>
+    <record id="view_ke_mpesa_transaction_form" model="ir.ui.view">
+        <field name="name">ke.mpesa.transaction.form</field>
+        <field name="model">ke.mpesa.transaction</field>
+        <field name="arch" type="xml">
+            <form create="0" edit="0" delete="0">
+                <header>
+                    <button name="action_query_status" type="object" string="Check status with M-Pesa"
+                            invisible="kind != 'stk' or state != 'pending'" class="btn-primary"/>
+                    <field name="state" widget="statusbar" statusbar_visible="pending,confirmed"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="kind"/>
+                            <field name="account_id"/>
+                            <field name="amount"/>
+                            <field name="currency_id" invisible="1"/>
+                            <field name="phone_masked"/>
+                            <field name="payer_name" invisible="not payer_name"/>
+                            <field name="reference"/>
+                        </group>
+                        <group>
+                            <field name="receipt_number"/>
+                            <field name="transaction_date"/>
+                            <field name="result_code"/>
+                            <field name="result_desc"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+                    <group string="Usage">
+                        <group>
+                            <field name="claimed"/>
+                            <field name="claim_reference"/>
+                        </group>
+                        <group>
+                            <field name="claimed_by_id"/>
+                            <field name="claimed_at"/>
+                        </group>
+                    </group>
+                    <group string="Technical" groups="base.group_no_one">
+                        <group>
+                            <field name="checkout_request_id"/>
+                            <field name="merchant_request_id"/>
+                            <field name="last_query_at"/>
+                        </group>
+                    </group>
+                    <group string="Raw callback" groups="ke_mpesa.group_mpesa_manager">
+                        <field name="raw_callback" nolabel="1" colspan="2"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
     </record>
 
-    <menuitem id="menu_mpesa_transaction"
-              name="M-Pesa transactions"
-              parent="point_of_sale.menu_point_of_sale_global_settings"
-              action="action_mpesa_transaction"
-              sequence="50"/>
+    <record id="view_ke_mpesa_transaction_search" model="ir.ui.view">
+        <field name="name">ke.mpesa.transaction.search</field>
+        <field name="model">ke.mpesa.transaction</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="receipt_number"/>
+                <field name="reference"/>
+                <field name="phone"/>
+                <field name="payer_name"/>
+                <field name="account_id"/>
+                <filter name="confirmed" string="Confirmed" domain="[('state', '=', 'confirmed')]"/>
+                <filter name="pending" string="Pending" domain="[('state', '=', 'pending')]"/>
+                <filter name="failed" string="Failed / cancelled"
+                        domain="[('state', 'in', ('failed', 'cancelled', 'expired'))]"/>
+                <separator/>
+                <filter name="unclaimed" string="Unclaimed payments"
+                        domain="[('state', '=', 'confirmed'), ('claimed', '=', False)]"/>
+                <separator/>
+                <filter name="today" string="Today"
+                        domain="[('create_date', '&gt;=', context_today().strftime('%Y-%m-%d'))]"/>
+                <filter name="date" string="Date" date="create_date"/>
+                <group>
+                    <filter name="group_account" string="Account" context="{'group_by': 'account_id'}"/>
+                    <filter name="group_state" string="Status" context="{'group_by': 'state'}"/>
+                    <filter name="group_kind" string="Type" context="{'group_by': 'kind'}"/>
+                    <filter name="group_day" string="Day" context="{'group_by': 'create_date:day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_ke_mpesa_transaction" model="ir.actions.act_window">
+        <field name="name">M-Pesa payments</field>
+        <field name="res_model">ke.mpesa.transaction</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_today': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No M-Pesa payment yet</p>
+            <p>STK push requests and till/paybill payments reported by Safaricom appear here.</p>
+        </field>
+    </record>
 </odoo>

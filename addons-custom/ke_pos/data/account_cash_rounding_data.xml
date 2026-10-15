@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- Kenyan shops round totals to the shilling: there are no cents coins
+         and M-Pesa only accepts whole shillings. Select it in
+         Point of Sale > Settings > Cash Rounding. Profit / loss accounts
+         are set per company (see account_cash_rounding.py). -->
+    <record id="cash_rounding_kes_1" model="account.cash.rounding">
+        <field name="name">KES 1.00 (Kenya)</field>
+        <field name="rounding">1.0</field>
+        <field name="strategy">add_invoice_line</field>
+        <field name="rounding_method">HALF-UP</field>
+    </record>
+</odoo>

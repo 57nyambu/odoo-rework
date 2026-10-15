@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+
+    <t t-name="ke_pos.MpesaPaymentDialog">
+        <Dialog title.translate="M-Pesa payment" size="'md'">
+            <div class="ke-mpesa-dialog d-flex flex-column gap-3">
+                <div class="d-flex align-items-center justify-content-between">
+                    <span class="text-muted">Amount</span>
+                    <span class="fs-2 fw-bolder" t-esc="formattedAmount"/>
+                </div>
+
+                <div t-if="showModeSwitch" class="btn-group w-100" role="group">
+                    <button type="button" class="btn btn-lg"
+                            t-att-class="state.mode === 'stk' ? 'btn-primary' : 'btn-secondary'"
+                            t-att-disabled="state.status === 'busy'"
+                            t-on-click="() => this.setMode('stk')">
+                        <i class="fa fa-mobile me-2" role="img" aria-label="Phone"/>Send STK push
+                    </button>
+                    <button type="button" class="btn btn-lg"
+                            t-att-class="state.mode === 'code' ? 'btn-primary' : 'btn-secondary'"
+                            t-att-disabled="state.status === 'busy'"
+                            t-on-click="() => this.setMode('code')">
+                        <i class="fa fa-check-square-o me-2" role="img" aria-label="Code"/>Enter M-Pesa code
+                    </button>
+                </div>
+
+                <t t-if="state.mode === 'stk'">
+                    <div>
+                        <label class="form-label fw-bold" for="ke_mpesa_phone">Customer phone number</label>
+                        <input id="ke_mpesa_phone" type="tel" inputmode="tel" autocomplete="off"
+                               class="form-control form-control-lg"
+                               placeholder="0712 345 678"
+                               t-model="state.phone"
+                               t-att-disabled="state.status === 'busy' or state.status === 'waiting'"
+                               t-on-keydown="onKeydown"/>
+                    </div>
+                    <div>
+                        <label class="form-label fw-bold" for="ke_mpesa_amount">Amount (whole shillings)</label>
+                        <input id="ke_mpesa_amount" type="number" min="1" step="1" inputmode="numeric"
+                               class="form-control form-control-lg"
+                               t-model.number="state.amount"
+                               t-att-disabled="state.status === 'busy' or state.status === 'waiting'"
+                               t-on-keydown="onKeydown"/>
+                        <div class="form-text">
+                            The customer gets a prompt on their phone and confirms with their M-Pesa PIN.
+                        </div>
+                    </div>
+                </t>
+                <t t-else="">
+                    <div>
+                        <label class="form-label fw-bold" for="ke_mpesa_code">M-Pesa confirmation code</label>
+                        <input id="ke_mpesa_code" type="text" maxlength="10" autocomplete="off"
+                               class="form-control form-control-lg text-uppercase font-monospace"
+                               placeholder="SJK3ABCD9Z"
+                               t-model="state.code"
+                               t-att-disabled="state.status === 'busy'"
+                               t-on-keydown="onKeydown"/>
+                        <div class="form-text">
+                            For customers who paid to
+                            <strong t-esc="method.ke_mpesa_display_number"/>
+                            from their phone: type the code at the start of their M-Pesa SMS.
+                        </div>
+                    </div>
+                </t>
+
+                <div t-if="state.message" class="alert mb-0 d-flex align-items-center"
+                     t-att-class="alertClass" role="status">
+                    <i t-if="state.status === 'busy' or state.status === 'waiting'"
+                       class="fa fa-circle-o-notch fa-spin me-2" role="img" aria-label="Waiting"/>
+                    <span t-esc="state.message"/>
+                </div>
+            </div>
+
+            <t t-set-slot="footer">
+                <button class="btn btn-primary btn-lg lh-lg" t-att-disabled="primaryDisabled" t-on-click="confirm">
+                    <t t-if="state.mode === 'code'">Verify code</t>
+                    <t t-elif="state.status === 'error'">Send again</t>
+                    <t t-else="">Send request</t>
+                </button>
+                <button class="btn btn-secondary btn-lg lh-lg" t-on-click="cancel">Cancel</button>
+            </t>
+        </Dialog>
+    </t>
+
+</templates>
